@@ -40,6 +40,8 @@ for (const file of [
   'src/features/billing/BillingPage.jsx',
   'src/features/buyer/BuyerScheduling.jsx',
   'src/features/buyer/BuyerClientPortal.jsx',
+  'src/features/messages/MessagesInbox.jsx',
+  'src/features/messages/useUnreadMessages.js',
 ]) {
   exists(file) ? pass(`file:${file}`) : fail(`file:${file}`, 'missing');
 }
@@ -82,13 +84,14 @@ else fail('checkin:feedback-render', 'not used on success screen');
 // 4) Firestore indexes for common queries
 const indexes = JSON.parse(read('firestore.indexes.json'));
 const indexKeys = indexes.indexes.map((i) => i.fields.map((f) => f.fieldPath).join('+'));
-for (const needed of ['ownerUid+createdAt', 'agentId+date', 'openHouseId+checkInTime', 'scheduleId+createdAt', 'contactPhone+createdAt']) {
+for (const needed of ['ownerUid+createdAt', 'agentId+date', 'openHouseId+checkInTime', 'scheduleId+createdAt', 'contactPhone+createdAt', 'agentUid+createdAt']) {
   const ok = indexKeys.some((k) => {
     if (needed === 'ownerUid+createdAt') return k.includes('ownerUid') && k.includes('createdAt');
     if (needed === 'agentId+date') return k.includes('agentId') && k.includes('date');
     if (needed === 'openHouseId+checkInTime') return k.includes('openHouseId') && k.includes('checkInTime');
     if (needed === 'scheduleId+createdAt') return k.includes('scheduleId') && k.includes('createdAt');
     if (needed === 'contactPhone+createdAt') return k.includes('contactPhone') && k.includes('createdAt');
+    if (needed === 'agentUid+createdAt') return k.includes('agentUid') && k.includes('createdAt');
     return false;
   });
   ok ? pass(`index:${needed}`) : fail(`index:${needed}`, 'missing from firestore.indexes.json');
@@ -116,6 +119,23 @@ for (const rel of ['functions/billing/handlers.js', 'functions/messaging/handler
 // 6) stripeWebhook must be onRequest not stub onCall
 const billingHandlers = read('functions/billing/handlers.js');
 billingHandlers.includes('exports.stripeWebhook = onRequest') ? pass('billing:stripeWebhook-http') : fail('billing:stripeWebhook-http');
+
+// 7) Phase 7 — Messages inbox wiring
+const appSrc = read('src/App.jsx');
+appSrc.includes('/messages') && appSrc.includes('MessagesInbox')
+  ? pass('messages:route')
+  : fail('messages:route', 'App.jsx missing /messages route');
+
+const inboxSrc = read('src/features/messages/MessagesInbox.jsx');
+inboxSrc.includes("httpsCallable(functions, 'sendAgentSms')")
+  ? pass('messages:sendAgentSms-callable')
+  : fail('messages:sendAgentSms-callable', 'inbox should use sendAgentSms callable');
+
+const navSrc = read('src/components/layout/navConfig.js');
+const messagesNavLine = navSrc.split('\n').find((line) => line.includes("to: '/messages'"));
+messagesNavLine && !messagesNavLine.includes('soon:')
+  ? pass('messages:nav-enabled')
+  : fail('messages:nav-enabled', 'Messages nav still marked soon');
 
 const passed = results.filter((r) => r.ok).length;
 const failed = results.filter((r) => !r.ok);

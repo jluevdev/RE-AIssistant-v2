@@ -14,6 +14,8 @@ import {
   MoreHorizontal,
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
+import useUnreadMessages from '../../features/messages/useUnreadMessages';
+import { Badge } from '../ui';
 import Logo from './Logo';
 import { NAV_ITEMS, QUICK_ACTIONS } from './navConfig';
 
@@ -24,8 +26,9 @@ function planLabel(subscription) {
   return subscription.planName || subscription.plan || 'Trial';
 }
 
-function NavItem({ item, collapsed, onNavigate }) {
+function NavItem({ item, collapsed, onNavigate, unreadCount = 0 }) {
   const { to, label, icon: Icon, soon } = item;
+  const showUnread = to === '/messages' && unreadCount > 0;
 
   if (soon) {
     return (
@@ -64,8 +67,24 @@ function NavItem({ item, collapsed, onNavigate }) {
       }
       title={collapsed ? label : undefined}
     >
-      <Icon className="w-5 h-5 shrink-0" />
-      {!collapsed && <span>{label}</span>}
+      <span className="relative shrink-0">
+        <Icon className="w-5 h-5" />
+        {showUnread && collapsed && (
+          <span className="absolute -top-1 -right-1 flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-brand-600 px-0.5 text-[9px] font-bold text-white">
+            {unreadCount > 9 ? '9+' : unreadCount}
+          </span>
+        )}
+      </span>
+      {!collapsed && (
+        <span className="flex-1 flex items-center justify-between gap-2">
+          {label}
+          {showUnread && (
+            <Badge tone="brand" className="min-w-[1.25rem] justify-center">
+              {unreadCount > 99 ? '99+' : unreadCount}
+            </Badge>
+          )}
+        </span>
+      )}
     </NavLink>
   );
 }
@@ -167,7 +186,7 @@ function QuickActionSheet({ open, onClose }) {
 }
 
 /** Slide-in drawer with full nav for mobile ("More" / hamburger). */
-function MobileDrawer({ open, onClose, email, plan, onLogout }) {
+function MobileDrawer({ open, onClose, email, plan, onLogout, unreadCount }) {
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-50 md:hidden" role="dialog" aria-modal="true" aria-label="Menu">
@@ -186,7 +205,7 @@ function MobileDrawer({ open, onClose, email, plan, onLogout }) {
         </div>
         <nav className="flex-1 overflow-y-auto p-3 space-y-1">
           {NAV_ITEMS.map((item) => (
-            <NavItem key={item.to} item={item} onNavigate={onClose} />
+            <NavItem key={item.to} item={item} onNavigate={onClose} unreadCount={unreadCount} />
           ))}
         </nav>
         <div className="border-t border-slate-200 p-4">
@@ -214,6 +233,7 @@ function MobileDrawer({ open, onClose, email, plan, onLogout }) {
 
 export default function AppLayout({ children }) {
   const { currentUser, userProfile, logout } = useAuth();
+  const unreadCount = useUnreadMessages();
   const location = useLocation();
   const [collapsed, setCollapsed] = useState(() => {
     if (typeof window === 'undefined') return false;
@@ -255,7 +275,7 @@ export default function AppLayout({ children }) {
         </div>
         <nav className="flex-1 overflow-y-auto px-3 py-2 space-y-1">
           {NAV_ITEMS.map((item) => (
-            <NavItem key={item.to} item={item} collapsed={collapsed} />
+            <NavItem key={item.to} item={item} collapsed={collapsed} unreadCount={unreadCount} />
           ))}
         </nav>
         <div className="p-3 border-t border-slate-200">
@@ -331,18 +351,24 @@ export default function AppLayout({ children }) {
             <span className="text-[10px] text-slate-500 mt-0.5">New</span>
           </button>
           <MobileTab
-            to="/buyer/schedule"
-            label="Tours"
+            to="/messages"
+            label="Messages"
             icon={MessageSquare}
-            active={mobileTabActive('/buyer/schedule')}
+            active={mobileTabActive('/messages')}
+            badge={unreadCount}
           />
           <button
             type="button"
             onClick={() => setDrawerOpen(true)}
-            className="flex flex-col items-center justify-center py-2 text-slate-500"
-            aria-label="More"
+            className="relative flex flex-col items-center justify-center py-2 text-slate-500"
+            aria-label={unreadCount ? `More (${unreadCount} unread messages)` : 'More'}
           >
             <MoreHorizontal className="w-5 h-5" />
+            {unreadCount > 0 && (
+              <span className="absolute top-1 right-[calc(50%-1.25rem)] flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-brand-600 px-0.5 text-[9px] font-bold text-white">
+                {unreadCount > 9 ? '9+' : unreadCount}
+              </span>
+            )}
             <span className="text-[10px] mt-0.5">More</span>
           </button>
         </div>
@@ -355,20 +381,28 @@ export default function AppLayout({ children }) {
         email={email}
         plan={plan}
         onLogout={logout}
+        unreadCount={unreadCount}
       />
     </div>
   );
 }
 
-function MobileTab({ to, label, icon: Icon, active }) {
+function MobileTab({ to, label, icon: Icon, active, badge = 0 }) {
   return (
     <Link
       to={to}
-      className={`flex flex-col items-center justify-center py-2 ${
+      className={`relative flex flex-col items-center justify-center py-2 ${
         active ? 'text-brand-600' : 'text-slate-500'
       }`}
     >
-      <Icon className="w-5 h-5" />
+      <span className="relative">
+        <Icon className="w-5 h-5" />
+        {badge > 0 && (
+          <span className="absolute -top-1 -right-2 flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-brand-600 px-0.5 text-[9px] font-bold text-white">
+            {badge > 9 ? '9+' : badge}
+          </span>
+        )}
+      </span>
       <span className="text-[10px] mt-0.5">{label}</span>
     </Link>
   );
