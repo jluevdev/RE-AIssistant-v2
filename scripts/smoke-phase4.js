@@ -42,6 +42,8 @@ for (const file of [
   'src/features/buyer/BuyerClientPortal.jsx',
   'src/features/messages/MessagesInbox.jsx',
   'src/features/messages/useUnreadMessages.js',
+  'src/features/contacts/ContactsPage.jsx',
+  'src/features/contacts/contactUtils.js',
 ]) {
   exists(file) ? pass(`file:${file}`) : fail(`file:${file}`, 'missing');
 }
@@ -84,7 +86,7 @@ else fail('checkin:feedback-render', 'not used on success screen');
 // 4) Firestore indexes for common queries
 const indexes = JSON.parse(read('firestore.indexes.json'));
 const indexKeys = indexes.indexes.map((i) => i.fields.map((f) => f.fieldPath).join('+'));
-for (const needed of ['ownerUid+createdAt', 'agentId+date', 'openHouseId+checkInTime', 'scheduleId+createdAt', 'contactPhone+createdAt', 'agentUid+createdAt']) {
+for (const needed of ['ownerUid+createdAt', 'agentId+date', 'openHouseId+checkInTime', 'scheduleId+createdAt', 'contactPhone+createdAt', 'agentUid+createdAt', 'userId+updatedAt']) {
   const ok = indexKeys.some((k) => {
     if (needed === 'ownerUid+createdAt') return k.includes('ownerUid') && k.includes('createdAt');
     if (needed === 'agentId+date') return k.includes('agentId') && k.includes('date');
@@ -92,6 +94,7 @@ for (const needed of ['ownerUid+createdAt', 'agentId+date', 'openHouseId+checkIn
     if (needed === 'scheduleId+createdAt') return k.includes('scheduleId') && k.includes('createdAt');
     if (needed === 'contactPhone+createdAt') return k.includes('contactPhone') && k.includes('createdAt');
     if (needed === 'agentUid+createdAt') return k.includes('agentUid') && k.includes('createdAt');
+    if (needed === 'userId+updatedAt') return k.includes('userId') && k.includes('updatedAt');
     return false;
   });
   ok ? pass(`index:${needed}`) : fail(`index:${needed}`, 'missing from firestore.indexes.json');
@@ -136,6 +139,21 @@ const messagesNavLine = navSrc.split('\n').find((line) => line.includes("to: '/m
 messagesNavLine && !messagesNavLine.includes('soon:')
   ? pass('messages:nav-enabled')
   : fail('messages:nav-enabled', 'Messages nav still marked soon');
+
+// 8) Phase 8 — Contacts CRM wiring
+appSrc.includes('/contacts') && appSrc.includes('ContactsPage')
+  ? pass('contacts:route')
+  : fail('contacts:route', 'App.jsx missing /contacts route');
+
+const contactsNavLine = navSrc.split('\n').find((line) => line.includes("to: '/contacts'"));
+contactsNavLine && !contactsNavLine.includes('soon:')
+  ? pass('contacts:nav-enabled')
+  : fail('contacts:nav-enabled', 'Contacts nav still marked soon');
+
+const contactsUtilsSrc = read('src/features/contacts/contactUtils.js');
+contactsUtilsSrc.includes('deriveContactsFromSources') && contactsUtilsSrc.includes('mergeContacts')
+  ? pass('contacts:utils')
+  : fail('contacts:utils', 'contactUtils missing derive/merge helpers');
 
 const passed = results.filter((r) => r.ok).length;
 const failed = results.filter((r) => !r.ok);

@@ -20,7 +20,7 @@ export const NAV_ITEMS = [
   { to: '/offers', label: 'Offers', icon: GitCompare },
   { to: '/buyer/schedule', label: 'Buyer Scheduling', icon: CalendarClock },
   { to: '/messages', label: 'Messages', icon: MessageSquare },
-  { to: '/contacts', label: 'Contacts', icon: Users, soon: true },
+  { to: '/contacts', label: 'Contacts', icon: Users },
   { to: '/billing', label: 'Billing', icon: CreditCard },
 ];
 

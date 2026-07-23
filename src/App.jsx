@@ -14,6 +14,7 @@ import BillingSuccessPage from './features/billing/BillingSuccessPage';
 import BuyerScheduling from './features/buyer/BuyerScheduling';
 import BuyerClientPortal from './features/buyer/BuyerClientPortal';
 import MessagesInbox from './features/messages/MessagesInbox';
+import ContactsPage from './features/contacts/ContactsPage';
 import HomePage from './pages/HomePage';
 
 export default function App() {
@@ -37,6 +38,7 @@ export default function App() {
         <Route path="/buyer/schedule" element={<BuyerScheduling />} />
         <Route path="/buyer/schedule/:scheduleId" element={<BuyerScheduling />} />
         <Route path="/messages" element={<MessagesInbox />} />
+        <Route path="/contacts" element={<ContactsPage />} />
         <Route path="/billing" element={<BillingPage />} />
         <Route path="/billing/success" element={<BillingSuccessPage />} />
       </Route>
