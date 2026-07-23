@@ -22,6 +22,7 @@ import {
   PageHeader,
   Select,
   Table,
+  Tooltip,
   TBody,
   Td,
   Th,
@@ -417,7 +418,11 @@ export default function AutomationsPage() {
                       checked={Boolean(settings.global.quietHoursEnabled)}
                       onChange={(e) => updateGlobal({ quietHoursEnabled: e.target.checked })}
                     />
-                    Quiet hours (defer sends overnight)
+                    <Tooltip content="Overnight sends are deferred until your quiet-hours window ends — respects your timezone.">
+                      <span className="underline decoration-dotted cursor-help">
+                        Quiet hours (defer sends overnight)
+                      </span>
+                    </Tooltip>
                   </label>
                   <Input
                     label="Quiet hours start"
@@ -507,8 +512,13 @@ export default function AutomationsPage() {
           ) : filteredTasks.length === 0 ? (
             <EmptyState
               icon={Zap}
-              title="No automations yet"
-              description="Enable rules above and activity will appear here when tasks are queued or sent."
+              title="No automation activity yet"
+              description="Enable a rule in the Rules tab — visitor follow-ups and reminders show up here within a few minutes."
+              action={
+                <Button type="button" variant="outline" onClick={() => setTab('rules')}>
+                  Configure rules
+                </Button>
+              }
             />
           ) : (
             <>

@@ -227,6 +227,7 @@ export default function OpenHouseManager() {
         ...newOpenHouseWithoutFiles,
         ownerUid: currentUser.uid,
         agentId: currentUser.uid,
+        teamId: userProfile?.teamId || null,
         agentName: userProfile?.fullName || currentUser.displayName,
         agentEmail: currentUser.email,
         agentPhone: userProfile?.phone || '',

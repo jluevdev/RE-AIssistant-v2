@@ -35,6 +35,7 @@ import {
   PageHeader,
   Select,
   Table,
+  Tooltip,
   TBody,
   Td,
   Th,
@@ -103,8 +104,12 @@ function ContactActions({ contact, onEdit, onLog, onDelete, compact = false }) {
         </Link>
       )}
       <Button type="button" variant="ghost" size="sm" onClick={() => onLog(contact)}>
-        <Clock className="w-3.5 h-3.5" />
-        Log contact
+        <Tooltip content="Stamp today as the last time you touched this lead — great for follow-up timing.">
+          <span className="inline-flex items-center gap-1">
+            <Clock className="w-3.5 h-3.5" />
+            Log contact
+          </span>
+        </Tooltip>
       </Button>
       <Button type="button" variant="ghost" size="sm" onClick={() => onEdit(contact)}>
         <Pencil className="w-3.5 h-3.5" />

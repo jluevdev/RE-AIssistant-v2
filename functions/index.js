@@ -8,6 +8,7 @@ const messaging = require('./messaging');
 const buyer = require('./buyer');
 const ai = require('./ai');
 const automations = require('./automations');
+const teams = require('./teams');
 
 module.exports = {
   ...health,
@@ -18,4 +19,5 @@ module.exports = {
   ...buyer,
   ...ai,
   ...automations,
+  ...teams,
 };

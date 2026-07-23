@@ -6,5 +6,6 @@ export { default as Badge } from './Badge';
 export { default as Modal } from './Modal';
 export { default as PageHeader } from './PageHeader';
 export { default as EmptyState } from './EmptyState';
+export { default as Tooltip } from './Tooltip';
 export { Table, THead, TBody, Tr, Th, Td } from './Table';
 export { default as toast } from 'react-hot-toast';

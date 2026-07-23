@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   DoorOpen,
@@ -13,13 +13,15 @@ import {
   TrendingUp,
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
-import { Badge, Card, PageHeader } from '../../components/ui';
+import { Badge, Card, PageHeader, Tooltip } from '../../components/ui';
+import SetupChecklist from '../onboarding/SetupChecklist';
 import {
   computeDashboardMetrics,
   formatCurrency,
   formatPercent,
 } from './dashboardMetrics';
 import useDashboardData from './useDashboardData';
+import useTeamDashboardData from './useTeamDashboardData';
 
 const FEATURES = [
   {
@@ -74,7 +76,7 @@ function StatSkeleton() {
   );
 }
 
-function StatTile({ to, icon: Icon, value, label, subline, tone = 'brand' }) {
+function StatTile({ to, icon: Icon, value, label, subline, tone = 'brand', tooltip }) {
   const iconClass =
     tone === 'accent'
       ? 'bg-accent-50 text-accent-600'
@@ -89,7 +91,15 @@ function StatTile({ to, icon: Icon, value, label, subline, tone = 'brand' }) {
           <Icon className="w-5 h-5" aria-hidden="true" />
         </span>
         <p className="mt-3 text-3xl font-bold text-slate-900 tabular-nums">{value}</p>
-        <p className="mt-1 text-sm font-medium text-slate-700">{label}</p>
+        {tooltip ? (
+          <Tooltip content={tooltip} position="bottom">
+            <p className="mt-1 text-sm font-medium text-slate-700 underline decoration-dotted cursor-help">
+              {label}
+            </p>
+          </Tooltip>
+        ) : (
+          <p className="mt-1 text-sm font-medium text-slate-700">{label}</p>
+        )}
         {subline && <p className="mt-0.5 text-xs text-slate-500">{subline}</p>}
         <span className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-brand-600 opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 transition-opacity">
           View details
@@ -102,7 +112,12 @@ function StatTile({ to, icon: Icon, value, label, subline, tone = 'brand' }) {
 
 export default function DashboardShell() {
   const { currentUser, userProfile } = useAuth();
-  const { data, loading } = useDashboardData();
+  const teamId = userProfile?.teamId || null;
+  const [view, setView] = useState('personal');
+  const personal = useDashboardData();
+  const teamDash = useTeamDashboardData(view === 'team' ? teamId : null);
+  const active = view === 'team' && teamId ? teamDash : personal;
+  const { data, loading, indexPending } = active;
   const subscription = userProfile?.subscription;
   const planName = subscription?.planName || subscription?.plan || 'trial';
   const status = subscription?.status;
@@ -128,15 +143,58 @@ export default function DashboardShell() {
         }
       />
 
+      <SetupChecklist />
+
       <section className="mb-8" aria-labelledby="dashboard-this-month">
         <div className="flex flex-wrap items-end justify-between gap-2 mb-4">
           <div>
             <h2 id="dashboard-this-month" className="text-lg font-semibold text-slate-900">
               This month
             </h2>
-            <p className="text-sm text-slate-500">{monthLabel()} · updated in real time</p>
+            <p className="text-sm text-slate-500">
+              {monthLabel()} · {view === 'team' ? 'team totals' : 'your activity'} · updated in real time
+            </p>
           </div>
+          {teamId && (
+            <div
+              className="inline-flex rounded-lg border border-slate-200 bg-white p-1 text-sm"
+              role="tablist"
+              aria-label="Dashboard scope"
+            >
+              <button
+                type="button"
+                role="tab"
+                aria-selected={view === 'personal'}
+                className={`rounded-md px-3 py-1.5 font-medium transition-colors ${
+                  view === 'personal'
+                    ? 'bg-brand-600 text-white'
+                    : 'text-slate-600 hover:bg-slate-50'
+                }`}
+                onClick={() => setView('personal')}
+              >
+                My work
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={view === 'team'}
+                className={`rounded-md px-3 py-1.5 font-medium transition-colors ${
+                  view === 'team' ? 'bg-brand-600 text-white' : 'text-slate-600 hover:bg-slate-50'
+                }`}
+                onClick={() => setView('team')}
+              >
+                Team
+              </button>
+            </div>
+          )}
         </div>
+
+        {indexPending && view === 'team' && (
+          <p className="mb-3 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+            Some team indexes are still building — showing best-effort totals. Run{' '}
+            <code className="font-mono">firebase deploy --only firestore:indexes</code> if needed.
+          </p>
+        )}
 
         {loading ? (
           <div className="grid gap-4 grid-cols-2 lg:grid-cols-3">
@@ -179,6 +237,7 @@ export default function DashboardShell() {
               value={formatPercent(metrics.responseRate)}
               label="SMS response rate"
               subline="Contacts who replied this month"
+              tooltip="Share of contacts you texted this month who replied inbound at least once."
             />
             <StatTile
               to="/open-houses"
@@ -192,7 +251,11 @@ export default function DashboardShell() {
               icon={TrendingUp}
               value={metrics.contactsThisMonth}
               label="New contacts"
-              subline="Added to your CRM this month"
+              subline={
+                view === 'team'
+                  ? 'Personal CRM stays per-agent'
+                  : 'Added to your CRM this month'
+              }
               tone="accent"
             />
           </div>

@@ -279,6 +279,15 @@ export default function BuyerScheduling() {
         backLabel="Dashboard"
       />
 
+      {recentSchedules.length === 0 && step === 1 && (
+        <Card className="mb-6 border-brand-200 bg-brand-50/50">
+          <p className="text-sm text-slate-700">
+            <span className="font-medium text-slate-900">First buyer tour?</span> Pick a date below,
+            add listing-agent phones, and we will request confirmations by SMS.
+          </p>
+        </Card>
+      )}
+
       {recentSchedules.length > 0 && !routeScheduleId && step === 1 && (
         <Card className="mb-6" padded={false}>
           <div className="p-4">

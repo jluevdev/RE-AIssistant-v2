@@ -2,7 +2,7 @@ import { Loader2 } from 'lucide-react';
 
 const VARIANTS = {
   primary:
-    'bg-brand-600 text-white hover:bg-brand-700 focus-visible:ring-brand-500 border border-transparent',
+    'bg-brand-600 text-white hover:bg-brand-700 focus-visible:ring-brand-500 border border-brand-600 hover:border-brand-700',
   secondary:
     'bg-slate-800 text-white hover:bg-slate-900 focus-visible:ring-slate-500 border border-transparent',
   outline:

@@ -14,7 +14,7 @@ function slugify(s) {
 }
 
 export default function ListingCreate() {
-  const { currentUser } = useAuth()
+  const { currentUser, userProfile } = useAuth()
   const navigate = useNavigate()
   const [form, setForm] = useState({
     address: '',
@@ -37,6 +37,7 @@ export default function ListingCreate() {
         title: form.title || form.address,
         hubSlug,
         ownerUid: currentUser?.uid || null,
+        teamId: userProfile?.teamId || null,
         agentEmail: form.agentEmail,
         agentPhone: form.agentPhone,
         status: 'active',

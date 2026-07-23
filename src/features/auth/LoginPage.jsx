@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -12,6 +12,8 @@ export default function LoginPage() {
   const [resetLoading, setResetLoading] = useState(false);
   const { login, googleSignIn, resetPassword, authError, setAuthError } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const returnUrl = searchParams.get('returnUrl') || '/dashboard';
 
   async function handleSubmit(event) {
     event.preventDefault();
@@ -25,7 +27,7 @@ export default function LoginPage() {
     try {
       await login(email, password);
       toast.success('Welcome back!');
-      navigate('/dashboard');
+      navigate(returnUrl.startsWith('/') ? returnUrl : '/dashboard');
     } catch (error) {
       toast.error(error.message || 'Sign in failed');
     } finally {
@@ -39,7 +41,7 @@ export default function LoginPage() {
     try {
       await googleSignIn();
       toast.success('Signed in with Google');
-      navigate('/dashboard');
+      navigate(returnUrl.startsWith('/') ? returnUrl : '/dashboard');
     } catch (error) {
       toast.error(error.message || 'Google sign in failed');
     } finally {

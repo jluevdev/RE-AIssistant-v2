@@ -80,10 +80,10 @@ export default function OfferCompare() {
         <Card>
           <EmptyState
             title="No offers yet"
-            description="Share a listing hub link to start collecting offers."
+            description="Create a listing hub, share the link with buyer agents, and offers appear here for side-by-side comparison."
             action={
               <Button as={Link} to="/listings/new">
-                Create Listing
+                Create listing hub
               </Button>
             }
           />

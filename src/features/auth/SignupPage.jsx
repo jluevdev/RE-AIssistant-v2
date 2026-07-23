@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -17,6 +17,8 @@ export default function SignupPage() {
   const [loading, setLoading] = useState(false);
   const { signup, googleSignIn, authError, setAuthError } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const returnUrl = searchParams.get('returnUrl') || '/dashboard';
 
   function handleChange(event) {
     const { name, value } = event.target;
@@ -58,7 +60,7 @@ export default function SignupPage() {
         phone: formData.phone.trim(),
       });
       toast.success('Account created — check your email to verify');
-      navigate('/dashboard');
+      navigate(returnUrl.startsWith('/') ? returnUrl : '/dashboard');
     } catch (error) {
       toast.error(error.message || 'Sign up failed');
     } finally {
@@ -72,7 +74,7 @@ export default function SignupPage() {
     try {
       await googleSignIn();
       toast.success('Signed in with Google');
-      navigate('/dashboard');
+      navigate(returnUrl.startsWith('/') ? returnUrl : '/dashboard');
     } catch (error) {
       toast.error(error.message || 'Google sign in failed');
     } finally {

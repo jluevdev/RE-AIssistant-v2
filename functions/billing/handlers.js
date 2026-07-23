@@ -124,6 +124,32 @@ async function handleCheckoutSessionCompleted(session) {
   const userId = session.metadata?.userId || session.client_reference_id;
   const planName = session.metadata?.planName || 'Unknown';
   const planKey = session.metadata?.planKey || null;
+  const kind = session.metadata?.kind || null;
+  const teamId = session.metadata?.teamId || null;
+  const seats = Number(session.metadata?.seats) || 1;
+
+  if (kind === 'team' && teamId) {
+    await admin.firestore().collection('teams').doc(teamId).set({
+      billing: {
+        plan: planKey || 'premiumTeam',
+        planName: planName || 'Premium Team',
+        status: 'active',
+        stripeCustomerId: session.customer || null,
+        stripeSubscriptionId: session.subscription || null,
+        stripeSessionId: session.id,
+        currentPeriodEnd: null,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      },
+      seats: {
+        purchased: seats,
+      },
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    }, { merge: true });
+
+    console.log(`Team checkout completed for team ${teamId} seats ${seats}`);
+    return;
+  }
+
   if (!userId) {
     console.warn('checkout.session.completed missing userId');
     return;
@@ -146,6 +172,34 @@ async function handleCheckoutSessionCompleted(session) {
 }
 
 async function handleSubscriptionCreated(subscription) {
+  const teamId = subscription.metadata?.teamId;
+  const kind = subscription.metadata?.kind;
+  const seats = Number(subscription.metadata?.seats) || subscription.items?.data?.[0]?.quantity || 1;
+
+  if (kind === 'team' && teamId) {
+    const teamRef = admin.firestore().collection('teams').doc(teamId);
+    const teamSnap = await teamRef.get();
+    const used = teamSnap.exists ? (teamSnap.data().seats?.used ?? teamSnap.data().memberCount ?? 1) : 1;
+
+    await teamRef.set({
+      billing: {
+        plan: subscription.metadata?.planKey || 'premiumTeam',
+        planName: subscription.metadata?.planName || 'Premium Team',
+        status: subscription.status || 'active',
+        stripeSubscriptionId: subscription.id,
+        stripeCustomerId: subscription.customer || null,
+        currentPeriodEnd: subscription.current_period_end || null,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      },
+      seats: {
+        purchased: seats,
+        used,
+      },
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    }, { merge: true });
+    return;
+  }
+
   const userId = subscription.metadata?.userId;
   if (!userId) return;
 
@@ -164,6 +218,26 @@ async function handleSubscriptionCreated(subscription) {
 }
 
 async function handleSubscriptionUpdated(subscription) {
+  const teamId = subscription.metadata?.teamId;
+  const kind = subscription.metadata?.kind;
+  const seats = Number(subscription.metadata?.seats) || subscription.items?.data?.[0]?.quantity || null;
+
+  if (kind === 'team' && teamId) {
+    const patch = {
+      billing: {
+        status: subscription.status,
+        currentPeriodEnd: subscription.current_period_end || null,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      },
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    };
+    if (seats) {
+      patch.seats = { purchased: seats };
+    }
+    await admin.firestore().collection('teams').doc(teamId).set(patch, { merge: true });
+    return;
+  }
+
   const userId = subscription.metadata?.userId;
   if (!userId) return;
 
@@ -178,6 +252,20 @@ async function handleSubscriptionUpdated(subscription) {
 }
 
 async function handleSubscriptionDeleted(subscription) {
+  const teamId = subscription.metadata?.teamId;
+  const kind = subscription.metadata?.kind;
+
+  if (kind === 'team' && teamId) {
+    await admin.firestore().collection('teams').doc(teamId).set({
+      billing: {
+        status: 'canceled',
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      },
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    }, { merge: true });
+    return;
+  }
+
   const userId = subscription.metadata?.userId;
   if (!userId) return;
 

@@ -11,6 +11,15 @@ service cloud.firestore {
     function sameTeam(resource) {
       return isSignedIn() && resource.data.teamId != null && resource.data.teamId == userTeamId();
     }
+    function isTeamMember(teamId) {
+      return isSignedIn()
+        && userTeamId() != null
+        && userTeamId() == teamId;
+    }
+    function isTeamAdmin(teamId) {
+      return isTeamMember(teamId)
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.teamRole in ['owner', 'admin'];
+    }
     function ownsResource(resource) {
       return isSignedIn() && (
         resource.data.ownerUid == request.auth.uid ||
@@ -31,9 +40,39 @@ service cloud.firestore {
         );
     }
 
-    // Users: self-access only
+    // Users: self-access only; teamId/teamRole are server-managed
     match /users/{userId} {
-      allow read, write: if isOwner(userId);
+      allow read: if isOwner(userId);
+      allow create: if isOwner(userId);
+      allow update: if isOwner(userId)
+        && request.resource.data.teamId == resource.data.teamId
+        && request.resource.data.teamRole == resource.data.teamRole;
+      allow delete: if isOwner(userId);
+    }
+
+    // Teams & membership — reads for members; writes via Cloud Functions only
+    match /teams/{teamId} {
+      allow read: if isSignedIn() && (
+        resource.data.ownerUid == request.auth.uid ||
+        isTeamMember(teamId)
+      );
+      allow write: if false;
+
+      match /members/{memberUid} {
+        allow read: if isSignedIn() && (
+          isTeamMember(teamId) ||
+          memberUid == request.auth.uid
+        );
+        allow write: if false;
+      }
+    }
+
+    match /teamInvites/{inviteId} {
+      allow read: if isSignedIn() && (
+        resource.data.email == authEmail() ||
+        isTeamAdmin(resource.data.teamId)
+      );
+      allow write: if false;
     }
 
     // Messages: owner OR team scope

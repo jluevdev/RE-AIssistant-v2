@@ -223,6 +223,22 @@ export function AuthProvider({ children }) {
     }
   }
 
+  async function refreshUserProfile() {
+    if (!currentUser) {
+      setUserProfile(null);
+      return null;
+    }
+    try {
+      const snap = await getDoc(doc(db, 'users', currentUser.uid));
+      const profile = snap.exists() ? snap.data() : null;
+      setUserProfile(profile);
+      return profile;
+    } catch (error) {
+      console.warn('Firebase profile refresh failed:', error.message);
+      return userProfile;
+    }
+  }
+
   const value = {
     currentUser,
     userProfile,
@@ -235,6 +251,7 @@ export function AuthProvider({ children }) {
     resetPassword,
     sendVerificationEmail,
     updateUserProfile,
+    refreshUserProfile,
     setAuthError,
   };
 

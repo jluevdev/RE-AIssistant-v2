@@ -8,6 +8,7 @@ import {
   Users,
   CreditCard,
   Zap,
+  Building2,
 } from 'lucide-react';
 
 /**
@@ -22,6 +23,7 @@ export const NAV_ITEMS = [
   { to: '/buyer/schedule', label: 'Buyer Scheduling', icon: CalendarClock },
   { to: '/messages', label: 'Messages', icon: MessageSquare },
   { to: '/contacts', label: 'Contacts', icon: Users },
+  { to: '/team', label: 'Team', icon: Building2 },
   { to: '/automations', label: 'Automations', icon: Zap },
   { to: '/billing', label: 'Billing', icon: CreditCard },
 ];

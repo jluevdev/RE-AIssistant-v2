@@ -2,7 +2,18 @@ import { brandColors, accentColors } from './src/theme/tokens.js';
 
 /** @type {import('tailwindcss').Config} */
 export default {
-  content: ['./index.html', './src/**/*.{js,jsx,tsx}'],
+  content: ['./index.html', './src/**/*.{js,jsx,ts,tsx}'],
+  safelist: [
+    'bg-brand-600',
+    'hover:bg-brand-700',
+    'border-brand-600',
+    'hover:border-brand-700',
+    'text-white',
+    'focus-visible:ring-brand-500',
+    'bg-accent-600',
+    'hover:bg-accent-700',
+    'focus-visible:ring-accent-500',
+  ],
   theme: {
     extend: {
       fontFamily: {

@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { ArrowLeft, MessageSquare, Search, Send } from 'lucide-react';
 import { httpsCallable } from 'firebase/functions';
 import { writeBatch, doc } from 'firebase/firestore';
 import { db, functions } from '../../config/firebase';
 import { useAuth } from '../../contexts/AuthContext';
-import { Badge, Button, EmptyState, Input, PageHeader, toast } from '../../components/ui';
+import { Badge, Button, EmptyState, Input, PageHeader, Tooltip, toast } from '../../components/ui';
 import { subscribeToAgentMessages } from './agentMessagesSubscription';
 import {
   QUICK_REPLY_TEMPLATES,
@@ -209,7 +210,14 @@ export default function MessagesInbox() {
                 description={
                   search
                     ? 'Try a different search term.'
-                    : 'Inbound SMS from your Twilio number will appear here.'
+                    : 'Run an open house check-in or send your first reply — SMS threads land here automatically.'
+                }
+                action={
+                  !search ? (
+                    <Button as={Link} to="/open-houses" variant="outline">
+                      Create open house
+                    </Button>
+                  ) : null
                 }
                 className="py-12"
               />
@@ -340,7 +348,10 @@ export default function MessagesInbox() {
               </div>
 
               <footer className="border-t border-slate-200 bg-white p-3 space-y-2">
-                <div className="flex flex-wrap gap-2" role="group" aria-label="Quick replies">
+                <div className="flex flex-wrap gap-2 items-center" role="group" aria-label="Quick replies">
+                  <Tooltip content="Tap a chip to insert common replies — edit before sending.">
+                    <span className="text-xs text-slate-500 mr-1">Quick replies</span>
+                  </Tooltip>
                   {QUICK_REPLY_TEMPLATES.map((template) => (
                     <button
                       key={template}

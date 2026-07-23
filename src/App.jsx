@@ -16,6 +16,8 @@ import BuyerClientPortal from './features/buyer/BuyerClientPortal';
 import MessagesInbox from './features/messages/MessagesInbox';
 import ContactsPage from './features/contacts/ContactsPage';
 import AutomationsPage from './features/automations/AutomationsPage';
+import TeamPage from './features/teams/TeamPage';
+import JoinTeamPage from './features/teams/JoinTeamPage';
 import HomePage from './pages/HomePage';
 
 export default function App() {
@@ -28,6 +30,7 @@ export default function App() {
       <Route path="/checkin/:openHouseId" element={<PublicCheckIn />} />
       <Route path="/listing/:hubSlug" element={<ListingHub />} />
       <Route path="/client/plan" element={<BuyerClientPortal />} />
+      <Route path="/join/:token" element={<JoinTeamPage />} />
 
       {/* Authenticated routes — wrapped in AppLayout shell */}
       <Route element={<RequireAuthLayout />}>
@@ -41,6 +44,7 @@ export default function App() {
         <Route path="/messages" element={<MessagesInbox />} />
         <Route path="/contacts" element={<ContactsPage />} />
         <Route path="/automations" element={<AutomationsPage />} />
+        <Route path="/team" element={<TeamPage />} />
         <Route path="/billing" element={<BillingPage />} />
         <Route path="/billing/success" element={<BillingSuccessPage />} />
       </Route>

@@ -52,6 +52,14 @@ for (const file of [
   'functions/automations/settings.js',
   'functions/automations/enqueue.js',
   'functions/automations/triggers.js',
+  'src/features/teams/TeamPage.jsx',
+  'src/features/teams/useTeam.js',
+  'functions/teams/index.js',
+  'functions/teams/handlers.js',
+  'src/features/onboarding/OnboardingWizard.jsx',
+  'src/features/onboarding/SetupChecklist.jsx',
+  'src/features/onboarding/useOnboarding.js',
+  'src/components/ui/Tooltip.jsx',
 ]) {
   exists(file) ? pass(`file:${file}`) : fail(`file:${file}`, 'missing');
 }
@@ -80,6 +88,10 @@ for (const fn of [
   'scheduleOpenHouseReminder',
   'processOpenHouseReminders',
   'sendFollowUpMessages',
+  'createTeam',
+  'inviteMember',
+  'acceptInvite',
+  'createTeamCheckoutSession',
 ]) {
   fnExports.includes(fn) ? pass(`fn:${fn}`) : fail(`fn:${fn}`, 'missing from functions exports');
 }
@@ -212,6 +224,60 @@ const rulesSrc = read('firestore.rules');
 rulesSrc.includes('automationSettings') && rulesSrc.includes('scheduledTasks')
   ? pass('automations:rules')
   : fail('automations:rules', 'firestore.rules missing automation collections');
+
+// 11) Phase 11 — Teams & brokerages
+appSrc.includes('/team') && appSrc.includes('TeamPage')
+  ? pass('team:route')
+  : fail('team:route', 'App.jsx missing /team route');
+
+appSrc.includes('/join/:token') && appSrc.includes('JoinTeamPage')
+  ? pass('team:join-route')
+  : fail('team:join-route', 'App.jsx missing /join/:token route');
+
+const teamNavLine = navSrc.split('\n').find((line) => line.includes("to: '/team'"));
+teamNavLine && !teamNavLine.includes('soon:')
+  ? pass('team:nav-enabled')
+  : fail('team:nav-enabled', 'Team nav missing or marked soon');
+
+dashboardSrc.includes('useTeamDashboardData') && dashboardSrc.includes('My work')
+  ? pass('dashboard:team-toggle')
+  : fail('dashboard:team-toggle', 'DashboardShell missing team toggle');
+
+rulesSrc.includes('match /teams/{teamId}') && rulesSrc.includes('teamInvites')
+  ? pass('team:rules')
+  : fail('team:rules', 'firestore.rules missing team collections');
+
+const usersRuleLocked =
+  rulesSrc.includes('request.resource.data.teamId == resource.data.teamId') &&
+  rulesSrc.includes('request.resource.data.teamRole == resource.data.teamRole');
+usersRuleLocked ? pass('team:users-rule-locked') : fail('team:users-rule-locked', 'users teamId/teamRole must be client-locked');
+
+const teamHandlersSrc = read('functions/teams/handlers.js');
+teamHandlersSrc.includes('exports.createTeam') && teamHandlersSrc.includes('exports.acceptInvite')
+  ? pass('team:callables')
+  : fail('team:callables', 'teams handlers missing core callables');
+
+// 12) Phase 12 — Onboarding & polish
+exists('public/manifest.webmanifest') ? pass('file:public/manifest.webmanifest') : fail('file:public/manifest.webmanifest', 'missing');
+
+const indexHtml = read('index.html');
+indexHtml.includes('manifest.webmanifest') && indexHtml.includes('theme-color')
+  ? pass('pwa:manifest-linked')
+  : fail('pwa:manifest-linked', 'index.html missing manifest/theme-color');
+
+const bootstrapSrc = read('src/bootstrap.jsx');
+bootstrapSrc.includes('virtual:pwa-register') || bootstrapSrc.includes('registerSW')
+  ? pass('pwa:register-sw')
+  : fail('pwa:register-sw', 'bootstrap should register service worker');
+
+dashboardSrc.includes('SetupChecklist')
+  ? pass('onboarding:checklist-on-dashboard')
+  : fail('onboarding:checklist-on-dashboard', 'DashboardShell missing SetupChecklist');
+
+const appLayoutSrc = read('src/components/layout/AppLayout.jsx');
+appLayoutSrc.includes('OnboardingWizard') && appLayoutSrc.includes('InstallPrompt')
+  ? pass('onboarding:app-shell')
+  : fail('onboarding:app-shell', 'AppLayout missing onboarding components');
 
 const passed = results.filter((r) => r.ok).length;
 const failed = results.filter((r) => !r.ok);

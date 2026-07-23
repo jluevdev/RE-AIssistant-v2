@@ -18,6 +18,10 @@ import useUnreadMessages from '../../features/messages/useUnreadMessages';
 import { Badge } from '../ui';
 import Logo from './Logo';
 import { NAV_ITEMS, QUICK_ACTIONS } from './navConfig';
+import TeamInviteBanner from '../../features/teams/TeamInviteBanner';
+import OnboardingWizard from '../../features/onboarding/OnboardingWizard';
+import InstallPrompt from '../../features/onboarding/InstallPrompt';
+import { OnboardingUiProvider, useOnboardingUi } from '../../features/onboarding/OnboardingContext';
 
 const SIDEBAR_STORAGE_KEY = 'reai.sidebar.collapsed';
 
@@ -89,7 +93,7 @@ function NavItem({ item, collapsed, onNavigate, unreadCount = 0 }) {
   );
 }
 
-function AccountMenu({ email, plan, onLogout }) {
+function AccountMenu({ email, plan, onLogout, onGettingStarted }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
 
@@ -143,6 +147,17 @@ function AccountMenu({ email, plan, onLogout }) {
             role="menuitem"
             onClick={() => {
               setOpen(false);
+              onGettingStarted?.();
+            }}
+            className="block w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50"
+          >
+            Getting started
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => {
+              setOpen(false);
               onLogout();
             }}
             className="flex w-full items-center gap-2 px-4 py-2 text-sm text-rose-600 hover:bg-rose-50"
@@ -186,7 +201,7 @@ function QuickActionSheet({ open, onClose }) {
 }
 
 /** Slide-in drawer with full nav for mobile ("More" / hamburger). */
-function MobileDrawer({ open, onClose, email, plan, onLogout, unreadCount }) {
+function MobileDrawer({ open, onClose, email, plan, onLogout, unreadCount, onGettingStarted }) {
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-50 md:hidden" role="dialog" aria-modal="true" aria-label="Menu">
@@ -218,9 +233,19 @@ function MobileDrawer({ open, onClose, email, plan, onLogout, unreadCount }) {
             type="button"
             onClick={() => {
               onClose();
+              onGettingStarted?.();
+            }}
+            className="mt-2 flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
+          >
+            Getting started
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              onClose();
               onLogout();
             }}
-            className="mt-3 flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-rose-600 hover:bg-rose-50"
+            className="mt-1 flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-rose-600 hover:bg-rose-50"
           >
             <LogOut className="w-4 h-4" />
             Sign out
@@ -232,7 +257,16 @@ function MobileDrawer({ open, onClose, email, plan, onLogout, unreadCount }) {
 }
 
 export default function AppLayout({ children }) {
+  return (
+    <OnboardingUiProvider>
+      <AppLayoutInner>{children}</AppLayoutInner>
+    </OnboardingUiProvider>
+  );
+}
+
+function AppLayoutInner({ children }) {
   const { currentUser, userProfile, logout } = useAuth();
+  const { reopenWizard } = useOnboardingUi();
   const unreadCount = useUnreadMessages();
   const location = useLocation();
   const [collapsed, setCollapsed] = useState(() => {
@@ -318,12 +352,17 @@ export default function AppLayout({ children }) {
             >
               <Bell className="w-5 h-5" />
             </button>
-            <AccountMenu email={email} plan={plan} onLogout={logout} />
+            <AccountMenu email={email} plan={plan} onLogout={logout} onGettingStarted={reopenWizard} />
           </div>
         </header>
 
         {/* Page content */}
-        <main className="px-4 sm:px-6 lg:px-8 py-6 pb-24 md:pb-8 max-w-6xl mx-auto">{children}</main>
+        <main className="px-4 sm:px-6 lg:px-8 py-6 pb-24 md:pb-8 max-w-6xl mx-auto">
+          <InstallPrompt />
+          <TeamInviteBanner />
+          <OnboardingWizard />
+          {children}
+        </main>
       </div>
 
       {/* Mobile bottom nav */}
@@ -382,6 +421,7 @@ export default function AppLayout({ children }) {
         plan={plan}
         onLogout={logout}
         unreadCount={unreadCount}
+        onGettingStarted={reopenWizard}
       />
     </div>
   );
