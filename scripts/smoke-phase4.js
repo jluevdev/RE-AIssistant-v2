@@ -279,6 +279,44 @@ appLayoutSrc.includes('OnboardingWizard') && appLayoutSrc.includes('InstallPromp
   ? pass('onboarding:app-shell')
   : fail('onboarding:app-shell', 'AppLayout missing onboarding components');
 
+// 13) Phase 13 — Public marketing site
+for (const file of [
+  'src/features/marketing/MarketingLayout.jsx',
+  'src/features/marketing/marketingContent.js',
+  'src/features/marketing/pages/LandingPage.jsx',
+  'src/features/marketing/pages/PricingPage.jsx',
+  'src/features/marketing/pages/PrivacyPage.jsx',
+  'src/features/marketing/pages/TermsPage.jsx',
+]) {
+  exists(file) ? pass(`file:${file}`) : fail(`file:${file}`, 'missing');
+}
+
+appSrc.includes('MarketingLayout') && appSrc.includes('LandingPage')
+  ? pass('marketing:landing-route')
+  : fail('marketing:landing-route', 'App.jsx missing marketing landing route');
+
+appSrc.includes('/pricing') && appSrc.includes('PricingPage')
+  ? pass('marketing:pricing-route')
+  : fail('marketing:pricing-route', 'App.jsx missing /pricing route');
+
+appSrc.includes('/privacy') && appSrc.includes('/terms')
+  ? pass('marketing:legal-routes')
+  : fail('marketing:legal-routes', 'App.jsx missing privacy/terms routes');
+
+const marketingContentSrc = read('src/features/marketing/marketingContent.js');
+marketingContentSrc.includes('planFeatures') && marketingContentSrc.includes('faq')
+  ? pass('marketing:content-module')
+  : fail('marketing:content-module', 'marketingContent.js missing core sections');
+
+const pricingCardsSrc = read('src/features/marketing/components/PricingCards.jsx');
+pricingCardsSrc.includes('SUBSCRIPTION_PLANS') && pricingCardsSrc.includes('Most Popular')
+  ? pass('marketing:pricing-from-config')
+  : fail('marketing:pricing-from-config', 'PricingCards should use SUBSCRIPTION_PLANS');
+
+indexHtml.includes('og:title') && indexHtml.includes('og:description')
+  ? pass('marketing:seo-meta')
+  : fail('marketing:seo-meta', 'index.html missing OG meta tags');
+
 const passed = results.filter((r) => r.ok).length;
 const failed = results.filter((r) => !r.ok);
 console.log(`\nPhase 4 static smoke: ${passed}/${results.length} passed\n`);
