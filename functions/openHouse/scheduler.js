@@ -6,7 +6,6 @@ const SECRETS = [
   'TWILIO_ACCOUNT_SID',
   'TWILIO_AUTH_TOKEN',
   'TWILIO_PHONE_NUMBER',
-  'SENDGRID_API_KEY',
 ];
 
 exports.processOpenHouseReminders = onRequest({ secrets: SECRETS }, async (req, res) => {

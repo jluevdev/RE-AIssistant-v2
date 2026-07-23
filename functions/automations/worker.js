@@ -10,7 +10,7 @@ const { sendEmail } = require('../shared/email');
 const { loadSettings } = require('./enqueue');
 
 const TWILIO_SECRETS = ['TWILIO_ACCOUNT_SID', 'TWILIO_AUTH_TOKEN', 'TWILIO_PHONE_NUMBER'];
-const EMAIL_SECRETS = ['SENDGRID_API_KEY'];
+// SendGrid is optional (same pattern as openHouse handlers) — not required in Secret Manager.
 
 const RULE_KEY_BY_TYPE = {
   open_house_visitor_sms: 'openHouseVisitorSms',
@@ -270,7 +270,7 @@ async function processScheduledTasks() {
 exports.processScheduledTasks = processScheduledTasks;
 
 exports.processScheduledTasksHttp = onRequest(
-  { secrets: [...TWILIO_SECRETS, ...EMAIL_SECRETS] },
+  { secrets: [...TWILIO_SECRETS] },
   async (req, res) => {
     try {
       const result = await processScheduledTasks();
@@ -285,7 +285,7 @@ exports.processScheduledTasksHttp = onRequest(
 exports.processScheduledTasksScheduled = onSchedule(
   {
     schedule: 'every 5 minutes',
-    secrets: [...TWILIO_SECRETS, ...EMAIL_SECRETS],
+    secrets: [...TWILIO_SECRETS],
   },
   async () => {
     try {

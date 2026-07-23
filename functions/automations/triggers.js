@@ -10,12 +10,11 @@ const {
 } = require('./enqueue');
 
 const TWILIO_SECRETS = ['TWILIO_ACCOUNT_SID', 'TWILIO_AUTH_TOKEN', 'TWILIO_PHONE_NUMBER'];
-const EMAIL_SECRETS = ['SENDGRID_API_KEY'];
 
 exports.onOpenHouseVisitorCreated = onDocumentCreated(
   {
     document: 'openHouseVisitors/{visitorId}',
-    secrets: [...TWILIO_SECRETS, ...EMAIL_SECRETS],
+    secrets: [...TWILIO_SECRETS],
   },
   async (event) => {
     try {
@@ -48,7 +47,7 @@ exports.onOpenHouseVisitorCreated = onDocumentCreated(
 exports.onOfferFinalized = onDocumentUpdated(
   {
     document: 'offers/{offerId}',
-    secrets: [...TWILIO_SECRETS, ...EMAIL_SECRETS],
+    secrets: [...TWILIO_SECRETS],
   },
   async (event) => {
     try {
@@ -77,7 +76,7 @@ exports.onOfferFinalized = onDocumentUpdated(
 exports.onOpenHouseCreated = onDocumentCreated(
   {
     document: 'openHouses/{openHouseId}',
-    secrets: [...TWILIO_SECRETS, ...EMAIL_SECRETS],
+    secrets: [...TWILIO_SECRETS],
   },
   async (event) => {
     try {
