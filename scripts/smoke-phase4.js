@@ -44,6 +44,8 @@ for (const file of [
   'src/features/messages/useUnreadMessages.js',
   'src/features/contacts/ContactsPage.jsx',
   'src/features/contacts/contactUtils.js',
+  'src/features/dashboard/dashboardMetrics.js',
+  'src/features/dashboard/useDashboardData.js',
 ]) {
   exists(file) ? pass(`file:${file}`) : fail(`file:${file}`, 'missing');
 }
@@ -154,6 +156,17 @@ const contactsUtilsSrc = read('src/features/contacts/contactUtils.js');
 contactsUtilsSrc.includes('deriveContactsFromSources') && contactsUtilsSrc.includes('mergeContacts')
   ? pass('contacts:utils')
   : fail('contacts:utils', 'contactUtils missing derive/merge helpers');
+
+// 9) Phase 9 — Dashboard money view
+const dashboardSrc = read('src/features/dashboard/DashboardShell.jsx');
+dashboardSrc.includes('computeDashboardMetrics') && dashboardSrc.includes('useDashboardData')
+  ? pass('dashboard:metrics-wired')
+  : fail('dashboard:metrics-wired', 'DashboardShell missing analytics wiring');
+
+const metricsSrc = read('src/features/dashboard/dashboardMetrics.js');
+metricsSrc.includes('computeDashboardMetrics') && metricsSrc.includes('isThisMonth')
+  ? pass('dashboard:metrics-helpers')
+  : fail('dashboard:metrics-helpers', 'dashboardMetrics missing core helpers');
 
 const passed = results.filter((r) => r.ok).length;
 const failed = results.filter((r) => !r.ok);
