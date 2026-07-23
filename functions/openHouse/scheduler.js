@@ -2,7 +2,14 @@ const { onRequest } = require('firebase-functions/v2/https');
 const { onSchedule } = require('firebase-functions/v2/scheduler');
 const { processOpenHouseReminders } = require('./handlers');
 
-exports.processOpenHouseReminders = onRequest(async (req, res) => {
+const SECRETS = [
+  'TWILIO_ACCOUNT_SID',
+  'TWILIO_AUTH_TOKEN',
+  'TWILIO_PHONE_NUMBER',
+  'SENDGRID_API_KEY',
+];
+
+exports.processOpenHouseReminders = onRequest({ secrets: SECRETS }, async (req, res) => {
   try {
     const result = await processOpenHouseReminders();
     res.json({ ok: true, ...result });
@@ -13,7 +20,7 @@ exports.processOpenHouseReminders = onRequest(async (req, res) => {
 });
 
 exports.processOpenHouseRemindersScheduled = onSchedule(
-  { schedule: 'every 5 minutes' },
+  { schedule: 'every 5 minutes', secrets: SECRETS },
   async () => {
     try {
       await processOpenHouseReminders();

@@ -7,6 +7,7 @@ const billing = require('./billing');
 const messaging = require('./messaging');
 const buyer = require('./buyer');
 const ai = require('./ai');
+const automations = require('./automations');
 
 module.exports = {
   ...health,
@@ -16,4 +17,5 @@ module.exports = {
   ...messaging,
   ...buyer,
   ...ai,
+  ...automations,
 };

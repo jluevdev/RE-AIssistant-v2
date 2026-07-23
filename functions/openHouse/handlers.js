@@ -343,76 +343,54 @@ exports.sendFollowUpMessages = onCall(async (request) => {
   }
 })
 
-// Schedule reminder SMS one hour before start (callable creates a reminder doc)
-exports.scheduleOpenHouseReminder = onCall(async (request) => {
+// Schedule reminder SMS before start — writes unified scheduledTasks (Phase 10)
+exports.scheduleOpenHouseReminder = onCall(
+  { secrets: ['TWILIO_ACCOUNT_SID', 'TWILIO_AUTH_TOKEN', 'TWILIO_PHONE_NUMBER'] },
+  async (request) => {
   try {
     const { openHouseId } = request.data
     if (!openHouseId) throw new Error('openHouseId required')
-    const openHouseRef = admin.firestore().collection('openHouses').doc(openHouseId)
+    const db = admin.firestore()
+    const openHouseRef = db.collection('openHouses').doc(openHouseId)
     const oh = await openHouseRef.get()
     if (!oh.exists) throw new Error('Open house not found')
-    const data = oh.data()
-    const start = new Date(`${data.date}T${data.startTime}`)
-    const runAt = new Date(start.getTime() - 60 * 60 * 1000) // 1 hour before
-    await admin.firestore().collection('openHouseReminders').add({
-      openHouseId,
-      runAt: admin.firestore.Timestamp.fromDate(runAt),
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
-      status: 'scheduled'
-    })
-    return { success: true }
+    const openHouse = { id: oh.id, ...oh.data() }
+
+    const {
+      loadSettings,
+      loadAgentProfile,
+      enqueueTask,
+      buildTaskForOpenHouseReminder,
+    } = require('../automations/enqueue')
+
+    const ownerUid = openHouse.agentId || openHouse.ownerUid
+    const settings = await loadSettings(db, ownerUid)
+    // Explicit schedule from UI always enqueues (force enable for this call)
+    const forced = {
+      ...settings,
+      rules: {
+        ...settings.rules,
+        openHouseAgentReminderSms: {
+          ...settings.rules.openHouseAgentReminderSms,
+          enabled: true,
+        },
+      },
+    }
+    const agentProfile = await loadAgentProfile(db, ownerUid)
+    const task = buildTaskForOpenHouseReminder(openHouse, agentProfile, forced)
+    if (!task) throw new Error('Could not build reminder (missing phone/date/time)')
+    const result = await enqueueTask(db, task)
+    return { success: true, ...result }
   } catch (e) {
     console.error('scheduleOpenHouseReminder error', e)
-    throw new Error('Failed to schedule reminder')
+    throw new Error(e.message || 'Failed to schedule reminder')
   }
 })
 
-// Background processor to send due reminder SMS messages
+// Background processor — delegates to unified scheduledTasks engine + drains legacy docs
 exports.processOpenHouseReminders = async () => {
-  const db = admin.firestore()
-  const now = new Date()
-  const dueQuery = await db.collection('openHouseReminders')
-    .where('status', '==', 'scheduled')
-    .where('runAt', '<=', admin.firestore.Timestamp.fromDate(now))
-    .get()
-
-  if (dueQuery.empty) return { processed: 0 }
-
-  let processed = 0
-  for (const docSnap of dueQuery.docs) {
-    const reminderRef = docSnap.ref
-    const reminder = docSnap.data()
-    try {
-      const openHouseRef = db.collection('openHouses').doc(reminder.openHouseId)
-      const ohSnap = await openHouseRef.get()
-      if (!ohSnap.exists) {
-        await reminderRef.update({ status: 'skipped', reason: 'openHouseNotFound' })
-        continue
-      }
-      const oh = ohSnap.data()
-      const toPhone = oh.agentPhone || null
-      if (!toPhone) {
-        await reminderRef.update({ status: 'skipped', reason: 'noAgentPhone' })
-        continue
-      }
-      const messageBody = `Reminder: ${oh.title || 'Open House'} at ${oh.address} starts in ~1 hour (${oh.startTime}).`
-      try {
-        await getTwilioClient().messages.create({
-          body: messageBody,
-          from: getTwilioFromNumber(),
-          to: toPhone
-        })
-      } catch (twilioErr) {
-        await reminderRef.update({ status: 'failed', error: twilioErr.message, failedAt: admin.firestore.FieldValue.serverTimestamp() })
-        continue
-      }
-      await reminderRef.update({ status: 'sent', sentAt: admin.firestore.FieldValue.serverTimestamp() })
-      processed += 1
-    } catch (err) {
-      await reminderRef.update({ status: 'failed', error: err.message, failedAt: admin.firestore.FieldValue.serverTimestamp() })
-    }
-  }
-  return { processed }
+  const { processScheduledTasks } = require('../automations/worker')
+  return processScheduledTasks()
 }
 
 // Get open house analytics

@@ -46,6 +46,12 @@ for (const file of [
   'src/features/contacts/contactUtils.js',
   'src/features/dashboard/dashboardMetrics.js',
   'src/features/dashboard/useDashboardData.js',
+  'src/features/automations/AutomationsPage.jsx',
+  'src/features/automations/automationsUtils.js',
+  'functions/automations/worker.js',
+  'functions/automations/settings.js',
+  'functions/automations/enqueue.js',
+  'functions/automations/triggers.js',
 ]) {
   exists(file) ? pass(`file:${file}`) : fail(`file:${file}`, 'missing');
 }
@@ -66,6 +72,14 @@ for (const fn of [
   'sendBuyerShowingRequests',
   'buildBuyerRoute',
   'getBuyerPlan',
+  'processScheduledTasksScheduled',
+  'processScheduledTasksHttp',
+  'onOpenHouseVisitorCreated',
+  'onOfferFinalized',
+  'onOpenHouseCreated',
+  'scheduleOpenHouseReminder',
+  'processOpenHouseReminders',
+  'sendFollowUpMessages',
 ]) {
   fnExports.includes(fn) ? pass(`fn:${fn}`) : fail(`fn:${fn}`, 'missing from functions exports');
 }
@@ -88,7 +102,7 @@ else fail('checkin:feedback-render', 'not used on success screen');
 // 4) Firestore indexes for common queries
 const indexes = JSON.parse(read('firestore.indexes.json'));
 const indexKeys = indexes.indexes.map((i) => i.fields.map((f) => f.fieldPath).join('+'));
-for (const needed of ['ownerUid+createdAt', 'agentId+date', 'openHouseId+checkInTime', 'scheduleId+createdAt', 'contactPhone+createdAt', 'agentUid+createdAt', 'userId+updatedAt']) {
+for (const needed of ['ownerUid+createdAt', 'agentId+date', 'openHouseId+checkInTime', 'scheduleId+createdAt', 'contactPhone+createdAt', 'agentUid+createdAt', 'userId+updatedAt', 'status+runAt']) {
   const ok = indexKeys.some((k) => {
     if (needed === 'ownerUid+createdAt') return k.includes('ownerUid') && k.includes('createdAt');
     if (needed === 'agentId+date') return k.includes('agentId') && k.includes('date');
@@ -97,6 +111,7 @@ for (const needed of ['ownerUid+createdAt', 'agentId+date', 'openHouseId+checkIn
     if (needed === 'contactPhone+createdAt') return k.includes('contactPhone') && k.includes('createdAt');
     if (needed === 'agentUid+createdAt') return k.includes('agentUid') && k.includes('createdAt');
     if (needed === 'userId+updatedAt') return k.includes('userId') && k.includes('updatedAt');
+    if (needed === 'status+runAt') return k.includes('status') && k.includes('runAt');
     return false;
   });
   ok ? pass(`index:${needed}`) : fail(`index:${needed}`, 'missing from firestore.indexes.json');
@@ -167,6 +182,36 @@ const metricsSrc = read('src/features/dashboard/dashboardMetrics.js');
 metricsSrc.includes('computeDashboardMetrics') && metricsSrc.includes('isThisMonth')
   ? pass('dashboard:metrics-helpers')
   : fail('dashboard:metrics-helpers', 'dashboardMetrics missing core helpers');
+
+// 10) Phase 10 — Automations
+appSrc.includes('/automations') && appSrc.includes('AutomationsPage')
+  ? pass('automations:route')
+  : fail('automations:route', 'App.jsx missing /automations route');
+
+const automationsNavLine = navSrc.split('\n').find((line) => line.includes("to: '/automations'"));
+automationsNavLine && !automationsNavLine.includes('soon:')
+  ? pass('automations:nav-enabled')
+  : fail('automations:nav-enabled', 'Automations nav missing or marked soon');
+
+const automationsPageSrc = read('src/features/automations/AutomationsPage.jsx');
+automationsPageSrc.includes('automationSettings') && automationsPageSrc.includes('scheduledTasks')
+  ? pass('automations:settings-activity')
+  : fail('automations:settings-activity', 'AutomationsPage missing settings/activity wiring');
+
+const workerSrc = read('functions/automations/worker.js');
+workerSrc.includes('dnc') && workerSrc.includes("collection('messages')")
+  ? pass('automations:worker-dnc-messages')
+  : fail('automations:worker-dnc-messages', 'worker must check dnc and log messages');
+
+const reminderSrc = read('functions/openHouse/handlers.js');
+reminderSrc.includes("require('../automations/enqueue')") || reminderSrc.includes('scheduledTasks')
+  ? pass('automations:reminder-migrated')
+  : fail('automations:reminder-migrated', 'scheduleOpenHouseReminder should enqueue scheduledTasks');
+
+const rulesSrc = read('firestore.rules');
+rulesSrc.includes('automationSettings') && rulesSrc.includes('scheduledTasks')
+  ? pass('automations:rules')
+  : fail('automations:rules', 'firestore.rules missing automation collections');
 
 const passed = results.filter((r) => r.ok).length;
 const failed = results.filter((r) => !r.ok);
