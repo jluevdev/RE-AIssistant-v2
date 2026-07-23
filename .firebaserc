@@ -1,0 +1,17 @@
+{
+  "projects": {
+    "default": "realestatescheduler-fa876"
+  },
+  "targets": {
+    "realestatescheduler-fa876": {
+      "hosting": {
+        "reaiassistant-v2": [
+          "reaiassistant-v2"
+        ],
+        "default": [
+          "realestatescheduler-fa876"
+        ]
+      }
+    }
+  }
+}

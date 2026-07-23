@@ -1,0 +1,175 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() { return request.auth != null; }
+    function isOwner(userId) { return isSignedIn() && request.auth.uid == userId; }
+    function authEmail() { return isSignedIn() ? request.auth.token.email : null; }
+    function userTeamId() {
+      return isSignedIn() ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data.teamId : null;
+    }
+    function sameTeam(resource) {
+      return isSignedIn() && resource.data.teamId != null && resource.data.teamId == userTeamId();
+    }
+    function ownsResource(resource) {
+      return isSignedIn() && (
+        resource.data.ownerUid == request.auth.uid ||
+        resource.data.agentId == request.auth.uid ||
+        sameTeam(resource)
+      );
+    }
+    function openHouseDoc(openHouseId) {
+      return get(/databases/$(database)/documents/openHouses/$(openHouseId));
+    }
+    function canAccessOpenHouse(openHouseId) {
+      return isSignedIn()
+        && openHouseDoc(openHouseId).exists
+        && (
+          openHouseDoc(openHouseId).data.ownerUid == request.auth.uid ||
+          openHouseDoc(openHouseId).data.agentId == request.auth.uid ||
+          sameTeam(openHouseDoc(openHouseId))
+        );
+    }
+
+    // Users: self-access only
+    match /users/{userId} {
+      allow read, write: if isOwner(userId);
+    }
+
+    // Messages: owner OR team scope
+    match /messages/{docId} {
+      allow read: if isSignedIn() && (
+        resource.data.agentUid == request.auth.uid ||
+        resource.data.agentEmail == authEmail() ||
+        sameTeam(resource)
+      );
+      allow create: if isSignedIn();
+      allow update, delete: if isSignedIn() && (
+        resource.data.agentUid == request.auth.uid ||
+        resource.data.agentEmail == authEmail() ||
+        sameTeam(resource)
+      );
+    }
+
+    // Offers: owner/team scope; writes via Cloud Functions only
+    match /offers/{offerId} {
+      allow read: if isSignedIn() && (
+        resource.data.ownerUid == request.auth.uid ||
+        sameTeam(resource)
+      );
+      allow create, update, delete: if false;
+
+      match /events/{eventId} {
+        allow read: if isSignedIn() && (
+          get(/databases/$(database)/documents/offers/$(offerId)).data.ownerUid == request.auth.uid ||
+          sameTeam(get(/databases/$(database)/documents/offers/$(offerId)))
+        );
+        allow write: if false;
+      }
+    }
+
+    // Listings: owner/team scope (listing hub submit uses callables, not client reads)
+    match /listings/{listingId} {
+      allow create: if isSignedIn() && request.resource.data.ownerUid == request.auth.uid;
+      allow read, update, delete: if isSignedIn() && (
+        resource.data.ownerUid == request.auth.uid ||
+        sameTeam(resource)
+      );
+    }
+
+    match /notifications/{notificationId} {
+      allow read: if isSignedIn() && resource.data.ownerUid == request.auth.uid;
+      allow write: if false;
+    }
+
+    // Open Houses: public read for check-in page
+    match /openHouses/{openHouseId} {
+      allow read: if true;
+      allow create: if isSignedIn() && (
+        request.resource.data.ownerUid == request.auth.uid ||
+        request.resource.data.agentId == request.auth.uid
+      );
+      allow update, delete: if ownsResource(resource);
+    }
+
+    // Public check-in creates visitor rows; agents read their open-house visitors only
+    match /openHouseVisitors/{visitorId} {
+      allow create: if request.resource.data.openHouseId != null
+        && exists(/databases/$(database)/documents/openHouses/$(request.resource.data.openHouseId));
+      allow read, update, delete: if isSignedIn() && (
+        resource.data.agentId == request.auth.uid ||
+        canAccessOpenHouse(resource.data.openHouseId)
+      );
+    }
+
+    // Feedback written by Cloud Functions only
+    match /openHouseFeedback/{feedbackId} {
+      allow read: if isSignedIn() && canAccessOpenHouse(resource.data.openHouseId);
+      allow write: if false;
+    }
+
+    // Reminder docs managed by Cloud Functions / scheduler only
+    match /openHouseReminders/{id} {
+      allow read, write: if false;
+    }
+
+    match /openHouseVerifications/{id} {
+      allow read, write: if false;
+    }
+
+    // Flyer requests created by Cloud Functions only
+    match /flyerRequests/{id} {
+      allow read: if isSignedIn() && canAccessOpenHouse(resource.data.openHouseId);
+      allow write: if false;
+    }
+
+    match /smsListings/{id} {
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow read, update, delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+    }
+
+    match /contacts/{contactId} {
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow read, update, delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+    }
+
+    match /agents/{userId}/clients/{clientId} {
+      allow read: if isSignedIn() && userId == request.auth.uid;
+      allow write: if false;
+    }
+
+    match /appointments/{appointmentId} {
+      allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create, update, delete: if false;
+    }
+
+    match /buyerSchedules/{scheduleId} {
+      allow create: if isSignedIn() && request.resource.data.ownerUid == request.auth.uid;
+      allow read: if isSignedIn() && resource.data.ownerUid == request.auth.uid;
+      allow update: if isSignedIn()
+        && resource.data.ownerUid == request.auth.uid
+        && request.resource.data.ownerUid == resource.data.ownerUid;
+      allow delete: if isSignedIn() && resource.data.ownerUid == request.auth.uid;
+    }
+
+    match /clientPlanTokens/{tokenId} {
+      allow read, write: if false;
+    }
+
+    match /dnc/{phone} {
+      allow read, write: if false;
+    }
+
+    match /consents/{phone} {
+      allow read, write: if false;
+    }
+
+    match /smsRouting/{phone} {
+      allow read, write: if false;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "name": "functions",
+  "description": "Cloud Functions for RE AIssistant v2",
+  "private": true,
+  "main": "index.js",
+  "engines": {
+    "node": "20"
+  },
+  "scripts": {
+    "serve": "firebase emulators:start --only functions",
+    "shell": "firebase functions:shell",
+    "logs": "firebase functions:log"
+  },
+  "dependencies": {
+    "@google/generative-ai": "^0.24.1",
+    "@sendgrid/mail": "^7.7.0",
+    "firebase-admin": "^12.1.1",
+    "firebase-functions": "^5.0.1",
+    "stripe": "^18.4.0",
+    "twilio": "^5.8.0"
+  }
+}

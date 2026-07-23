@@ -1,0 +1,30 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+firebase-debug.log*
+firebase-debug.*.log*
+
+# Dependencies
+node_modules/
+
+# Build
+dist/
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Firebase
+.firebase/
+.runtimeconfig.json
+
+# Credentials
+*-service-account*.json
+serviceAccount*.json
+google-credentials.json
+credentials.json
+*.pem
+twilio-config.json
+twilio-credentials.json
