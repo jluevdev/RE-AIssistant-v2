@@ -23,6 +23,11 @@ import OnboardingWizard from '../../features/onboarding/OnboardingWizard';
 import InstallPrompt from '../../features/onboarding/InstallPrompt';
 import { OnboardingUiProvider, useOnboardingUi } from '../../features/onboarding/OnboardingContext';
 import HelpChatWidget from '../../features/help/HelpChatWidget';
+import {
+  TesterChecklistProvider,
+  useTesterChecklistUi,
+} from '../../features/tester/TesterChecklistContext';
+import TesterChecklistOverlay from '../../features/tester/TesterChecklistOverlay';
 
 const SIDEBAR_STORAGE_KEY = 'reai.sidebar.collapsed';
 
@@ -124,7 +129,7 @@ function NavSections({ collapsed = false, onNavigate, unreadCount = 0 }) {
   );
 }
 
-function AccountMenu({ email, plan, onLogout, onGettingStarted }) {
+function AccountMenu({ email, plan, onLogout, onGettingStarted, onTesterChecklist, testerMode }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
 
@@ -189,6 +194,17 @@ function AccountMenu({ email, plan, onLogout, onGettingStarted }) {
             role="menuitem"
             onClick={() => {
               setOpen(false);
+              onTesterChecklist?.();
+            }}
+            className="block w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50"
+          >
+            {testerMode ? 'Tester checklist' : 'Enable tester mode'}
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => {
+              setOpen(false);
               onLogout();
             }}
             className="flex w-full items-center gap-2 px-4 py-2 text-sm text-rose-600 hover:bg-rose-50"
@@ -232,7 +248,7 @@ function QuickActionSheet({ open, onClose }) {
 }
 
 /** Slide-in drawer with full nav for mobile ("More" / hamburger). */
-function MobileDrawer({ open, onClose, email, plan, onLogout, unreadCount, onGettingStarted }) {
+function MobileDrawer({ open, onClose, email, plan, onLogout, unreadCount, onGettingStarted, onTesterChecklist, testerMode }) {
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-50 md:hidden" role="dialog" aria-modal="true" aria-label="Menu">
@@ -272,6 +288,16 @@ function MobileDrawer({ open, onClose, email, plan, onLogout, unreadCount, onGet
             type="button"
             onClick={() => {
               onClose();
+              onTesterChecklist?.();
+            }}
+            className="mt-1 flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
+          >
+            {testerMode ? 'Tester checklist' : 'Enable tester mode'}
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              onClose();
               onLogout();
             }}
             className="mt-1 flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-rose-600 hover:bg-rose-50"
@@ -288,7 +314,9 @@ function MobileDrawer({ open, onClose, email, plan, onLogout, unreadCount, onGet
 export default function AppLayout({ children }) {
   return (
     <OnboardingUiProvider>
-      <AppLayoutInner>{children}</AppLayoutInner>
+      <TesterChecklistProvider>
+        <AppLayoutInner>{children}</AppLayoutInner>
+      </TesterChecklistProvider>
     </OnboardingUiProvider>
   );
 }
@@ -296,6 +324,7 @@ export default function AppLayout({ children }) {
 function AppLayoutInner({ children }) {
   const { currentUser, userProfile, logout } = useAuth();
   const { reopenWizard } = useOnboardingUi();
+  const { enableTesterMode, testerMode } = useTesterChecklistUi();
   const unreadCount = useUnreadMessages();
   const location = useLocation();
   const [collapsed, setCollapsed] = useState(() => {
@@ -379,7 +408,14 @@ function AppLayoutInner({ children }) {
             >
               <Bell className="w-5 h-5" />
             </button>
-            <AccountMenu email={email} plan={plan} onLogout={logout} onGettingStarted={reopenWizard} />
+            <AccountMenu
+              email={email}
+              plan={plan}
+              onLogout={logout}
+              onGettingStarted={reopenWizard}
+              onTesterChecklist={() => enableTesterMode(true)}
+              testerMode={testerMode}
+            />
           </div>
         </header>
 
@@ -449,7 +485,10 @@ function AppLayoutInner({ children }) {
         onLogout={logout}
         unreadCount={unreadCount}
         onGettingStarted={reopenWizard}
+        onTesterChecklist={() => enableTesterMode(true)}
+        testerMode={testerMode}
       />
+      <TesterChecklistOverlay />
       <HelpChatWidget />
     </div>
   );

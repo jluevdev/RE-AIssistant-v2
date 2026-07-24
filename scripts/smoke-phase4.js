@@ -327,6 +327,24 @@ read('functions/ai/helpBot.js').includes('searchLocalHelp') && read('functions/a
   ? pass('help:hybrid-handler')
   : fail('help:hybrid-handler', 'helpBot should use local search + link sanitization');
 
+// 15) Phase 15A — Tester mode checklist overlay
+for (const file of [
+  'src/features/tester/testerChecklistContent.js',
+  'src/features/tester/TesterChecklistOverlay.jsx',
+  'src/features/tester/useTesterChecklist.js',
+  'src/features/tester/TesterChecklistContext.jsx',
+]) {
+  exists(file) ? pass(`file:${file}`) : fail(`file:${file}`, 'missing');
+}
+
+appLayoutSrc.includes('TesterChecklistProvider') && appLayoutSrc.includes('TesterChecklistOverlay')
+  ? pass('tester:overlay-wired')
+  : fail('tester:overlay-wired', 'AppLayout missing tester checklist');
+
+read('src/features/tester/testerChecklistContent.js').includes('smsWarning')
+  ? pass('tester:sms-warning')
+  : fail('tester:sms-warning', 'tester checklist should warn about shared Twilio number');
+
 const passed = results.filter((r) => r.ok).length;
 const failed = results.filter((r) => !r.ok);
 console.log(`\nPhase 4 static smoke: ${passed}/${results.length} passed\n`);

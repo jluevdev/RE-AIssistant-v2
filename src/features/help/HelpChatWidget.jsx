@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { HelpCircle, Send, X } from 'lucide-react';
 import { Button } from '../../components/ui';
+import { OPEN_HELP_EVENT } from '../tester/TesterChecklistContext';
 import useHelpBot from './useHelpBot';
 import { STARTER_PROMPTS } from './helpPrompts';
 
@@ -52,6 +53,14 @@ export default function HelpChatWidget() {
   useEffect(() => {
     if (open) inputRef.current?.focus();
   }, [open]);
+
+  useEffect(() => {
+    function handleOpenHelp() {
+      setOpen(true);
+    }
+    window.addEventListener(OPEN_HELP_EVENT, handleOpenHelp);
+    return () => window.removeEventListener(OPEN_HELP_EVENT, handleOpenHelp);
+  }, []);
 
   async function submitQuestion(text) {
     const question = String(text || '').trim();

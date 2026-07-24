@@ -1,4 +1,4 @@
-# RE AIssistant v2 — Friend Testing Guide
+# RE AIssistant v2 — Testing Guide
 
 Use this doc when sharing the app with testers. It covers what’s live, what to try, and how to report issues.
 
@@ -19,9 +19,12 @@ You don’t need to test everything — but the more areas you hit, the better.
 ## Before you start
 
 1. **Create an account** (or use credentials the host gives you).
-2. **Use Chrome or Safari** on mobile if possible — that’s where most agents will live.
-3. **SMS features** only work if Twilio is configured for the project. If texts don’t send, still note what you tried; other features should work.
-4. **Email automations** may show as *Failed* in Automations → Activity if SendGrid isn’t set up yet. SMS automations are the priority for this round.
+2. **Enable tester mode** — after login, open your **account menu** (avatar, top-right) → **Enable tester mode**, or visit `https://reaiassistant-v2.web.app/dashboard?tester=1` once while signed in.
+3. **Use the in-app checklist** — a **Tester mode** panel appears bottom-left with step-by-step links (~15 min). Minimize it anytime; reopen via **Tester checklist** in the account menu.
+4. **Use Chrome or Safari** on mobile if possible — that’s where most agents will live.
+5. **SMS features** only work if Twilio is configured for the project. If texts don’t send, still note what you tried; other features should work.
+6. **Shared Twilio number:** all testers send SMS from the **same project number**. Use a **unique client test phone** for each tester — do **not** text the same contact number another tester used, or replies may route to the wrong inbox.
+7. **Email automations** may show as *Failed* in Automations → Activity if SendGrid isn’t set up yet. SMS automations are the priority for this round.
 
 ---
 
