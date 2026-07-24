@@ -45,8 +45,8 @@ service cloud.firestore {
       allow read: if isOwner(userId);
       allow create: if isOwner(userId);
       allow update: if isOwner(userId)
-        && request.resource.data.teamId == resource.data.teamId
-        && request.resource.data.teamRole == resource.data.teamRole;
+        && request.resource.data.get('teamId', null) == resource.data.get('teamId', null)
+        && request.resource.data.get('teamRole', null) == resource.data.get('teamRole', null);
       allow delete: if isOwner(userId);
     }
 

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowRight, CheckCircle2, Sparkles } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
@@ -30,10 +30,21 @@ export default function OnboardingWizard() {
     company: '',
     timezone: 'America/Los_Angeles',
   });
+  // Prevent profile saves from resetting the wizard mid-flow (userProfile changes on Continue).
+  const wasOpenRef = useRef(false);
 
   useEffect(() => {
-    if (wizardForced || showWizard) {
-      setOpen(true);
+    const shouldOpen = Boolean(wizardForced || showWizard);
+    if (!shouldOpen) {
+      wasOpenRef.current = false;
+      setOpen(false);
+      return;
+    }
+
+    setOpen(true);
+    // Only hydrate step/form when the wizard first opens — not on every profile write.
+    if (!wasOpenRef.current) {
+      wasOpenRef.current = true;
       setStep(onboarding.wizardStep || 0);
       setProfileForm({
         fullName: userProfile?.fullName || currentUser?.displayName || '',
@@ -50,6 +61,7 @@ export default function OnboardingWizard() {
     try {
       await dismissWizard();
       setOpen(false);
+      wasOpenRef.current = false;
       clearForcedWizard();
     } catch (error) {
       toast.error(error.message || 'Could not save preference');
@@ -87,6 +99,7 @@ export default function OnboardingWizard() {
       try {
         await finishWizard();
         setOpen(false);
+        wasOpenRef.current = false;
         clearForcedWizard();
         toast.success('You are all set — finish the checklist on your dashboard.');
       } catch (error) {

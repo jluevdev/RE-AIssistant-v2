@@ -11,7 +11,8 @@ import {
   updateProfile,
 } from 'firebase/auth';
 import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
-import { auth, db } from '../config/firebase';
+import { httpsCallable } from 'firebase/functions';
+import { auth, db, functions } from '../config/firebase';
 
 const AuthContext = createContext(null);
 
@@ -239,6 +240,28 @@ export function AuthProvider({ children }) {
     }
   }
 
+  async function deleteAccount() {
+    setAuthError(null);
+    try {
+      const callable = httpsCallable(functions, 'deleteMyAccount');
+      await callable();
+      setCurrentUser(null);
+      setUserProfile(null);
+      try {
+        await signOut(auth);
+      } catch {
+        // Auth user may already be removed server-side.
+      }
+    } catch (error) {
+      const message = error?.code === 'functions/failed-precondition'
+        ? error.message
+        : getErrorMessage(error);
+      setAuthError(message);
+      console.error('Delete account error:', error);
+      throw new Error(message);
+    }
+  }
+
   const value = {
     currentUser,
     userProfile,
@@ -252,6 +275,7 @@ export function AuthProvider({ children }) {
     sendVerificationEmail,
     updateUserProfile,
     refreshUserProfile,
+    deleteAccount,
     setAuthError,
   };
 

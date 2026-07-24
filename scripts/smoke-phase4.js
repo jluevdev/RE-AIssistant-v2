@@ -93,6 +93,7 @@ for (const fn of [
   'acceptInvite',
   'createTeamCheckoutSession',
   'askHelpBot',
+  'deleteMyAccount',
 ]) {
   fnExports.includes(fn) ? pass(`fn:${fn}`) : fail(`fn:${fn}`, 'missing from functions exports');
 }
@@ -249,8 +250,10 @@ rulesSrc.includes('match /teams/{teamId}') && rulesSrc.includes('teamInvites')
   : fail('team:rules', 'firestore.rules missing team collections');
 
 const usersRuleLocked =
-  rulesSrc.includes('request.resource.data.teamId == resource.data.teamId') &&
-  rulesSrc.includes('request.resource.data.teamRole == resource.data.teamRole');
+  (rulesSrc.includes('request.resource.data.teamId == resource.data.teamId')
+    || rulesSrc.includes("request.resource.data.get('teamId', null) == resource.data.get('teamId', null)"))
+  && (rulesSrc.includes('request.resource.data.teamRole == resource.data.teamRole')
+    || rulesSrc.includes("request.resource.data.get('teamRole', null) == resource.data.get('teamRole', null)"));
 usersRuleLocked ? pass('team:users-rule-locked') : fail('team:users-rule-locked', 'users teamId/teamRole must be client-locked');
 
 const teamHandlersSrc = read('functions/teams/handlers.js');
