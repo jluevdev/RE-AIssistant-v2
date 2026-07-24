@@ -5,12 +5,12 @@ import {
   FileText,
   GitCompare,
   CalendarClock,
-  CreditCard,
   ArrowRight,
   Sparkles,
   Users,
   MessageSquare,
   TrendingUp,
+  Building2,
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { Badge, Card, PageHeader, Tooltip } from '../../components/ui';
@@ -23,41 +23,51 @@ import {
 import useDashboardData from './useDashboardData';
 import useTeamDashboardData from './useTeamDashboardData';
 
-const FEATURES = [
+const TOOL_SECTIONS = [
   {
-    to: '/open-houses',
-    title: 'Open Houses',
-    description: 'Create events, run OTP check-ins, and capture visitor feedback.',
-    icon: DoorOpen,
-    tone: 'brand',
+    title: 'Listing Agent',
+    items: [
+      {
+        to: '/open-houses',
+        title: 'Open Houses',
+        description: 'Create events, run OTP check-ins, and capture visitor feedback.',
+        icon: DoorOpen,
+      },
+      {
+        to: '/listings/new',
+        title: 'Create Listing',
+        description: 'Spin up a public listing hub for offer submissions.',
+        icon: FileText,
+      },
+      {
+        to: '/offers',
+        title: 'Offers',
+        description: 'Compare offers side by side and track status changes.',
+        icon: GitCompare,
+      },
+    ],
   },
   {
-    to: '/listings/new',
-    title: 'Create Listing',
-    description: 'Spin up a public listing hub for offer submissions.',
-    icon: FileText,
-    tone: 'brand',
+    title: 'Buyer Agent',
+    items: [
+      {
+        to: '/buyer/schedule',
+        title: 'Buyer Scheduling',
+        description: 'Request showings, collect confirmations, share a tour route.',
+        icon: CalendarClock,
+      },
+    ],
   },
   {
-    to: '/offers',
-    title: 'Offers',
-    description: 'Compare offers side by side and track status changes.',
-    icon: GitCompare,
-    tone: 'brand',
-  },
-  {
-    to: '/buyer/schedule',
-    title: 'Buyer Scheduling',
-    description: 'Request showings, collect confirmations, share a tour route.',
-    icon: CalendarClock,
-    tone: 'brand',
-  },
-  {
-    to: '/billing',
-    title: 'Billing',
-    description: 'Manage your subscription and plan.',
-    icon: CreditCard,
-    tone: 'neutral',
+    title: 'Team',
+    items: [
+      {
+        to: '/team',
+        title: 'Team',
+        description: 'Invite agents, assign roles, and manage your brokerage.',
+        icon: Building2,
+      },
+    ],
   },
 ];
 
@@ -262,25 +272,33 @@ export default function DashboardShell() {
         )}
       </section>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {FEATURES.map(({ to, title, description, icon: Icon, tone }) => (
-          <Link key={to} to={to} className="group">
-            <Card hover className="h-full flex flex-col">
-              <span
-                className={`flex h-10 w-10 items-center justify-center rounded-lg ${
-                  tone === 'neutral' ? 'bg-slate-100 text-slate-600' : 'bg-brand-50 text-brand-600'
-                }`}
-              >
-                <Icon className="w-5 h-5" />
-              </span>
-              <h3 className="mt-3 font-semibold text-slate-900">{title}</h3>
-              <p className="mt-1 text-sm text-slate-500 flex-1">{description}</p>
-              <span className="mt-3 inline-flex items-center gap-1 text-sm font-medium text-brand-600 group-hover:gap-2 transition-all">
-                Open
-                <ArrowRight className="w-4 h-4" />
-              </span>
-            </Card>
-          </Link>
+      <div className="space-y-8">
+        {TOOL_SECTIONS.map((section) => (
+          <section key={section.title} aria-labelledby={`tools-${section.title}`}>
+            <h2
+              id={`tools-${section.title}`}
+              className="mb-4 text-lg font-semibold text-slate-900"
+            >
+              {section.title}
+            </h2>
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {section.items.map(({ to, title, description, icon: Icon }) => (
+                <Link key={to} to={to} className="group">
+                  <Card hover className="h-full flex flex-col">
+                    <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-brand-50 text-brand-600">
+                      <Icon className="w-5 h-5" />
+                    </span>
+                    <h3 className="mt-3 font-semibold text-slate-900">{title}</h3>
+                    <p className="mt-1 text-sm text-slate-500 flex-1">{description}</p>
+                    <span className="mt-3 inline-flex items-center gap-1 text-sm font-medium text-brand-600 group-hover:gap-2 transition-all">
+                      Open
+                      <ArrowRight className="w-4 h-4" />
+                    </span>
+                  </Card>
+                </Link>
+              ))}
+            </div>
+          </section>
         ))}
       </div>
 

@@ -92,6 +92,7 @@ for (const fn of [
   'inviteMember',
   'acceptInvite',
   'createTeamCheckoutSession',
+  'askHelpBot',
 ]) {
   fnExports.includes(fn) ? pass(`fn:${fn}`) : fail(`fn:${fn}`, 'missing from functions exports');
 }
@@ -316,6 +317,15 @@ pricingCardsSrc.includes('SUBSCRIPTION_PLANS') && pricingCardsSrc.includes('Most
 indexHtml.includes('og:title') && indexHtml.includes('og:description')
   ? pass('marketing:seo-meta')
   : fail('marketing:seo-meta', 'index.html missing OG meta tags');
+
+// 14) Phase 14 — In-app help bot
+exists('src/features/help/HelpChatWidget.jsx') ? pass('file:src/features/help/HelpChatWidget.jsx') : fail('file:src/features/help/HelpChatWidget.jsx', 'missing');
+exists('functions/ai/helpKnowledge.js') ? pass('file:functions/ai/helpKnowledge.js') : fail('file:functions/ai/helpKnowledge.js', 'missing');
+fnExports.includes('askHelpBot') ? pass('fn:askHelpBot') : fail('fn:askHelpBot', 'missing from functions exports');
+appLayoutSrc.includes('HelpChatWidget') ? pass('help:widget-wired') : fail('help:widget-wired', 'AppLayout missing HelpChatWidget');
+read('functions/ai/helpBot.js').includes('searchLocalHelp') && read('functions/ai/helpBot.js').includes('sanitizeLinks')
+  ? pass('help:hybrid-handler')
+  : fail('help:hybrid-handler', 'helpBot should use local search + link sanitization');
 
 const passed = results.filter((r) => r.ok).length;
 const failed = results.filter((r) => !r.ok);

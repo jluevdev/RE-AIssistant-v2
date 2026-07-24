@@ -17,11 +17,12 @@ import { useAuth } from '../../contexts/AuthContext';
 import useUnreadMessages from '../../features/messages/useUnreadMessages';
 import { Badge } from '../ui';
 import Logo from './Logo';
-import { NAV_ITEMS, QUICK_ACTIONS } from './navConfig';
+import { NAV_SECTIONS, QUICK_ACTIONS } from './navConfig';
 import TeamInviteBanner from '../../features/teams/TeamInviteBanner';
 import OnboardingWizard from '../../features/onboarding/OnboardingWizard';
 import InstallPrompt from '../../features/onboarding/InstallPrompt';
 import { OnboardingUiProvider, useOnboardingUi } from '../../features/onboarding/OnboardingContext';
+import HelpChatWidget from '../../features/help/HelpChatWidget';
 
 const SIDEBAR_STORAGE_KEY = 'reai.sidebar.collapsed';
 
@@ -90,6 +91,36 @@ function NavItem({ item, collapsed, onNavigate, unreadCount = 0 }) {
         </span>
       )}
     </NavLink>
+  );
+}
+
+function NavSections({ collapsed = false, onNavigate, unreadCount = 0 }) {
+  return (
+    <>
+      {NAV_SECTIONS.map((section, idx) => (
+        <div key={section.label || `group-${idx}`} className={idx > 0 ? 'mt-4' : ''}>
+          {section.label && !collapsed && (
+            <p className="px-3 pb-1 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+              {section.label}
+            </p>
+          )}
+          {section.label && collapsed && (
+            <div className="mx-2 mb-2 border-t border-slate-100" />
+          )}
+          <div className="space-y-1">
+            {section.items.map((item) => (
+              <NavItem
+                key={item.to}
+                item={item}
+                collapsed={collapsed}
+                onNavigate={onNavigate}
+                unreadCount={unreadCount}
+              />
+            ))}
+          </div>
+        </div>
+      ))}
+    </>
   );
 }
 
@@ -218,10 +249,8 @@ function MobileDrawer({ open, onClose, email, plan, onLogout, unreadCount, onGet
             <X className="w-5 h-5" />
           </button>
         </div>
-        <nav className="flex-1 overflow-y-auto p-3 space-y-1">
-          {NAV_ITEMS.map((item) => (
-            <NavItem key={item.to} item={item} onNavigate={onClose} unreadCount={unreadCount} />
-          ))}
+        <nav className="flex-1 overflow-y-auto p-3">
+          <NavSections onNavigate={onClose} unreadCount={unreadCount} />
         </nav>
         <div className="border-t border-slate-200 p-4">
           <p className="text-xs text-slate-500">Signed in as</p>
@@ -307,10 +336,8 @@ function AppLayoutInner({ children }) {
             <Logo collapsed={collapsed} />
           </Link>
         </div>
-        <nav className="flex-1 overflow-y-auto px-3 py-2 space-y-1">
-          {NAV_ITEMS.map((item) => (
-            <NavItem key={item.to} item={item} collapsed={collapsed} unreadCount={unreadCount} />
-          ))}
+        <nav className="flex-1 overflow-y-auto px-3 py-2">
+          <NavSections collapsed={collapsed} unreadCount={unreadCount} />
         </nav>
         <div className="p-3 border-t border-slate-200">
           <button
@@ -423,6 +450,7 @@ function AppLayoutInner({ children }) {
         unreadCount={unreadCount}
         onGettingStarted={reopenWizard}
       />
+      <HelpChatWidget />
     </div>
   );
 }

@@ -1,4 +1,5 @@
 const { onCall, HttpsError } = require('firebase-functions/v2/https');
+const helpBot = require('./helpBot');
 
 function stub(name) {
   return onCall(async () => {
@@ -8,3 +9,4 @@ function stub(name) {
 
 exports.processPDF = stub('processPDF');
 exports.enhanceMessage = stub('enhanceMessage');
+exports.askHelpBot = helpBot.askHelpBot;
