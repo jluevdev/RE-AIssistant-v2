@@ -71,11 +71,29 @@ export default function BuyerClientPortal() {
         <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <p className="text-xs uppercase tracking-wide text-blue-600 font-semibold mb-2">Showing plan</p>
           <h1 className="text-2xl font-bold text-slate-900 mb-1">
-            Tour with {plan.buyerName || 'your agent'}
+            {plan.buyers?.length
+              ? `Tour for ${plan.buyerName}`
+              : `Tour with ${plan.buyerName || 'your agent'}`}
           </h1>
-          <p className="text-sm text-slate-600 mb-6">
-            Your agent prepared this route for today's property tour. No login required.
+          <p className="text-sm text-slate-600 mb-4">
+            {plan.agentName
+              ? `${plan.agentName} prepared this route for today's property tour. No login required.`
+              : "Your agent prepared this route for today's property tour. No login required."}
           </p>
+
+          {plan.buyers?.length > 0 && (
+            <ul className="mb-5 flex flex-wrap gap-2">
+              {plan.buyers.map((buyer, index) => (
+                <li
+                  key={`${buyer.name}-${index}`}
+                  className="inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700"
+                >
+                  {buyer.name}
+                  {buyer.role === 'co_borrower' ? ' · Co-borrower' : ' · Primary'}
+                </li>
+              ))}
+            </ul>
+          )}
 
           {availabilityLabel && (
             <div className="flex items-center gap-2 rounded-lg bg-slate-50 border border-slate-200 px-3 py-2 mb-5 text-sm text-slate-700">

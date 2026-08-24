@@ -116,6 +116,17 @@ export function deriveContactsFromSources({
   }
 
   for (const schedule of schedules) {
+    for (const buyer of schedule.buyers || []) {
+      addCandidate(map, {
+        name: buyer.name,
+        phone: buyer.phone,
+        email: buyer.email,
+        type: 'buyer',
+        source: 'buyer_tour',
+        lastContactedAt: schedule.createdAt,
+      });
+    }
+
     for (const target of schedule.targets || []) {
       if (!target?.listingAgentPhone) continue;
       addCandidate(map, {

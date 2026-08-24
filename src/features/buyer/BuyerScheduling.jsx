@@ -22,12 +22,20 @@ import {
   Plus,
   RefreshCw,
   Send,
+  Users,
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { db, functions } from '../../config/firebase';
-import { Badge, Button, Card, Input, PageHeader, toast } from '../../components/ui';
+import { Badge, Button, Card, Input, PageHeader, Select, toast } from '../../components/ui';
+import {
+  BUYER_ROLES,
+  emptyBuyer,
+  formatHouseholdLabel,
+  normalizeBuyers,
+} from './buyerHousehold';
 
 const EMPTY_TARGET = { address: '', listingAgentPhone: '', note: '' };
+const MAX_BUYERS = 8;
 
 function statusTone(status) {
   if (status === 'confirmed') return 'success';
@@ -37,7 +45,7 @@ function statusTone(status) {
 
 function StepHeader({ step }) {
   const steps = [
-    { id: 1, label: 'Availability' },
+    { id: 1, label: 'Buyers & time' },
     { id: 2, label: 'Properties' },
     { id: 3, label: 'Route & Share' },
   ];
@@ -75,6 +83,7 @@ export default function BuyerScheduling() {
   const [step, setStep] = useState(1);
   const [scheduleId, setScheduleId] = useState(routeScheduleId || '');
   const [availability, setAvailability] = useState({ date: '', start: '', end: '' });
+  const [buyers, setBuyers] = useState([emptyBuyer('primary')]);
   const [targets, setTargets] = useState([{ ...EMPTY_TARGET }]);
   const [confirmations, setConfirmations] = useState([]);
   const [shareLink, setShareLink] = useState('');
@@ -84,10 +93,11 @@ export default function BuyerScheduling() {
   const [sending, setSending] = useState(false);
   const [building, setBuilding] = useState(false);
 
-  const buyerName = useMemo(
-    () => userProfile?.displayName || userProfile?.name || currentUser?.displayName || null,
+  const agentName = useMemo(
+    () => userProfile?.fullName || userProfile?.displayName || currentUser?.displayName || null,
     [currentUser, userProfile]
   );
+  const householdLabel = useMemo(() => formatHouseholdLabel(buyers), [buyers]);
 
   useEffect(() => {
     if (!currentUser) return;
@@ -132,6 +142,16 @@ export default function BuyerScheduling() {
 
         setScheduleId(routeScheduleId);
         setAvailability(data.availability || { date: '', start: '', end: '' });
+        setBuyers(
+          data.buyers?.length
+            ? data.buyers.map((buyer) => ({
+                name: buyer.name || '',
+                phone: buyer.phone || '',
+                email: buyer.email || '',
+                role: buyer.role === 'co_borrower' ? 'co_borrower' : 'primary',
+              }))
+            : [emptyBuyer('primary')]
+        );
         setTargets(data.targets?.length ? data.targets : [{ ...EMPTY_TARGET }]);
         setShareLink(data.shareTokenId ? `${window.location.origin}/client/plan?t=${data.shareTokenId}` : '');
         setMapsLink(data.mapsLink || '');
@@ -166,12 +186,39 @@ export default function BuyerScheduling() {
     setTargets((prev) => (prev.length === 1 ? prev : prev.filter((_, idx) => idx !== index)));
   };
 
-  const canContinueStep1 = availability.date && availability.start && availability.end;
+  const updateBuyer = (index, field, value) => {
+    setBuyers((prev) => prev.map((buyer, idx) => (idx === index ? { ...buyer, [field]: value } : buyer)));
+  };
+
+  const addBuyer = () => {
+    setBuyers((prev) => (prev.length >= MAX_BUYERS ? prev : [...prev, emptyBuyer(prev.length === 0 ? 'primary' : 'co_borrower')]));
+  };
+
+  const removeBuyer = (index) => {
+    setBuyers((prev) => {
+      if (prev.length === 1) return prev;
+      const next = prev.filter((_, idx) => idx !== index);
+      if (!next.some((buyer) => buyer.role === 'primary')) {
+        next[0] = { ...next[0], role: 'primary' };
+      }
+      return next;
+    });
+  };
+
+  const canContinueStep1 =
+    availability.date && availability.start && availability.end && buyers.some((buyer) => buyer.name.trim());
   const canSend = targets.some((target) => target.address && target.listingAgentPhone);
 
   const sendRequests = async () => {
     if (!canSend) {
       toast.error('Add at least one property with address and listing agent phone');
+      return;
+    }
+
+    const household = normalizeBuyers(buyers);
+    if (household.length === 0) {
+      toast.error('Add at least one buyer name');
+      setStep(1);
       return;
     }
 
@@ -182,7 +229,8 @@ export default function BuyerScheduling() {
         scheduleId: scheduleId || null,
         availability,
         targets,
-        buyerName,
+        buyers: household,
+        agentName,
       });
 
       const nextScheduleId = data.scheduleId;
@@ -262,7 +310,7 @@ export default function BuyerScheduling() {
         <PageHeader
           icon={CalendarClock}
           title="Buyer Tour Scheduling"
-          subtitle="Request showings, collect confirmations, and share a route."
+          subtitle="Name the buyers on this tour, request showings, and share one route with the household."
         />
         <p className="text-sm text-slate-600">Loading schedule…</p>
       </div>
@@ -274,7 +322,7 @@ export default function BuyerScheduling() {
       <PageHeader
         icon={CalendarClock}
         title="Buyer Tour Scheduling"
-        subtitle="Request showings, collect confirmations, and share a route with your buyer."
+        subtitle="Name the buyers on this tour, request showings, and share one route with the household."
         backTo="/dashboard"
         backLabel="Dashboard"
       />
@@ -301,9 +349,13 @@ export default function BuyerScheduling() {
                 >
                   <div>
                     <p className="text-sm font-medium text-slate-900">
-                      {schedule.availability?.date || 'Tour'} · {(schedule.targets || []).length} propert{(schedule.targets || []).length === 1 ? 'y' : 'ies'}
+                      {formatHouseholdLabel(schedule.buyers, schedule.buyerName) || schedule.availability?.date || 'Tour'}
                     </p>
-                    <p className="text-xs text-slate-500 capitalize">{schedule.status?.replace('_', ' ') || 'draft'}</p>
+                    <p className="text-xs text-slate-500">
+                      {schedule.availability?.date || 'No date'} · {(schedule.targets || []).length} propert
+                      {(schedule.targets || []).length === 1 ? 'y' : 'ies'}
+                      {schedule.status ? ` · ${String(schedule.status).replace('_', ' ')}` : ''}
+                    </p>
                   </div>
                   <span className="text-xs text-brand-600">Open</span>
                 </Link>
@@ -318,8 +370,75 @@ export default function BuyerScheduling() {
       {step === 1 && (
         <Card>
           <div className="flex items-center gap-2 mb-4">
+            <Users className="w-5 h-5 text-brand-600" />
+            <h2 className="font-semibold text-slate-900">Who is touring?</h2>
+          </div>
+          <p className="text-sm text-slate-600 mb-4">
+            Add every borrower on this transaction. They share one showing plan — no buyer login needed.
+          </p>
+          <div className="space-y-4 mb-6">
+            {buyers.map((buyer, index) => (
+              <div key={`buyer-${index}`} className="rounded-lg border border-slate-200 p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-sm font-medium text-slate-800">
+                    Buyer {index + 1}
+                  </p>
+                  {buyers.length > 1 && (
+                    <button
+                      type="button"
+                      className="text-sm text-rose-600 hover:underline"
+                      onClick={() => removeBuyer(index)}
+                    >
+                      Remove
+                    </button>
+                  )}
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <Input
+                    label="Full name"
+                    placeholder="Jane Buyer"
+                    value={buyer.name}
+                    onChange={(event) => updateBuyer(index, 'name', event.target.value)}
+                    containerClassName="md:col-span-2"
+                  />
+                  <Select
+                    label="Role"
+                    value={buyer.role}
+                    onChange={(event) => updateBuyer(index, 'role', event.target.value)}
+                  >
+                    {BUYER_ROLES.map((role) => (
+                      <option key={role.value} value={role.value}>
+                        {role.label}
+                      </option>
+                    ))}
+                  </Select>
+                  <Input
+                    label="Mobile phone (optional)"
+                    placeholder="(555) 555-0100"
+                    value={buyer.phone}
+                    onChange={(event) => updateBuyer(index, 'phone', event.target.value)}
+                  />
+                  <Input
+                    label="Email (optional)"
+                    type="email"
+                    placeholder="jane@email.com"
+                    value={buyer.email}
+                    onChange={(event) => updateBuyer(index, 'email', event.target.value)}
+                    containerClassName="md:col-span-2"
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+          {buyers.length < MAX_BUYERS && (
+            <Button variant="outline" onClick={addBuyer} className="mb-6">
+              <Plus className="w-4 h-4" /> Add co-borrower
+            </Button>
+          )}
+
+          <div className="flex items-center gap-2 mb-4 pt-2 border-t border-slate-100">
             <Calendar className="w-5 h-5 text-brand-600" />
-            <h2 className="font-semibold text-slate-900">When is your buyer available?</h2>
+            <h2 className="font-semibold text-slate-900">When are they available?</h2>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <Input
@@ -342,7 +461,16 @@ export default function BuyerScheduling() {
             />
           </div>
           <div className="mt-5 flex justify-end">
-            <Button disabled={!canContinueStep1} onClick={() => setStep(2)}>
+            <Button
+              disabled={!canContinueStep1}
+              onClick={() => {
+                if (!buyers.some((buyer) => buyer.name.trim())) {
+                  toast.error('Add at least one buyer name');
+                  return;
+                }
+                setStep(2);
+              }}
+            >
               Next: Add properties
             </Button>
           </div>
@@ -411,9 +539,10 @@ export default function BuyerScheduling() {
         <Card className="space-y-5">
           <div className="flex items-start justify-between gap-4">
             <div>
-              <h2 className="font-semibold text-slate-900">Build route & share with buyer</h2>
+              <h2 className="font-semibold text-slate-900">Build route & share with buyers</h2>
               <p className="text-sm text-slate-600 mt-1">
-                Listing agents reply YES/NO by SMS. Refresh to collate confirmations and generate a Google Maps route.
+                Listing agents reply YES/NO by SMS. Refresh to collate confirmations and generate a Google Maps route
+                {householdLabel ? ` for ${householdLabel}` : ''}.
               </p>
             </div>
             <div className="text-right text-xs text-slate-500">
@@ -431,6 +560,9 @@ export default function BuyerScheduling() {
             </Button>
             <Button variant="outline" onClick={() => setStep(2)}>
               Edit properties
+            </Button>
+            <Button variant="outline" onClick={() => setStep(1)}>
+              Edit buyers
             </Button>
           </div>
 
@@ -468,7 +600,9 @@ export default function BuyerScheduling() {
                 <CheckCircle2 className="w-4 h-4 text-accent-700" />
                 <p className="text-sm font-medium text-accent-800">Client portal link ready</p>
               </div>
-              <p className="text-xs text-accent-700 mb-3">Share this read-only link with your buyer. Expires in 48 hours.</p>
+              <p className="text-xs text-accent-700 mb-3">
+                Share this read-only link with {householdLabel || 'your buyers'}. Same link for every co-borrower. Expires in 48 hours.
+              </p>
               <div className="flex items-center gap-2">
                 <Input readOnly value={shareLink} containerClassName="flex-1" className="bg-white" />
                 <Button variant="accent" size="sm" onClick={copyShareLink}>

@@ -35,6 +35,40 @@ function formatAvailabilityWindow(availability) {
   return `${date} between ${startLabel} and ${endLabel}`;
 }
 
+function normalizeBuyers(buyers) {
+  if (!Array.isArray(buyers)) return [];
+  const normalized = buyers
+    .map((buyer, index) => ({
+      id: buyer?.id || `buyer-${index + 1}`,
+      name: String(buyer?.name || '').trim(),
+      phone: String(buyer?.phone || '').trim(),
+      email: String(buyer?.email || '').trim().toLowerCase(),
+      role: buyer?.role === 'co_borrower' ? 'co_borrower' : 'primary',
+    }))
+    .filter((buyer) => buyer.name);
+
+  if (normalized.length === 0) return [];
+  if (!normalized.some((buyer) => buyer.role === 'primary')) {
+    normalized[0].role = 'primary';
+  }
+  return normalized;
+}
+
+function formatHouseholdLabel(buyers, fallback = '') {
+  const names = (buyers || []).map((buyer) => buyer.name).filter(Boolean);
+  if (names.length === 0) return fallback;
+  if (names.length === 1) return names[0];
+  if (names.length === 2) return `${names[0]} & ${names[1]}`;
+  return `${names.slice(0, -1).join(', ')} & ${names[names.length - 1]}`;
+}
+
+function publicBuyers(buyers) {
+  return (buyers || []).map((buyer) => ({
+    name: buyer.name,
+    role: buyer.role === 'co_borrower' ? 'co_borrower' : 'primary',
+  }));
+}
+
 function normalizeTargets(targets) {
   if (!Array.isArray(targets)) return [];
   return targets
@@ -157,11 +191,12 @@ async function collateScheduleTargets(db, schedule) {
   return updatedTargets;
 }
 
-function buildShowingRequestMessage({ agentName, address, availability, note }) {
+function buildShowingRequestMessage({ agentName, householdLabel, address, availability, note }) {
   const windowLabel = formatAvailabilityWindow(availability);
   const noteSuffix = note ? ` Note: ${note}.` : '';
+  const forBuyers = householdLabel ? ` for ${householdLabel}` : '';
   return (
-    `Hi, this is ${agentName} via RE AIssistant. I'd like to schedule a showing for ${address} on ${windowLabel}.${noteSuffix} ` +
+    `Hi, this is ${agentName} via RE AIssistant. I'd like to schedule a showing for ${address} on ${windowLabel}${forBuyers}.${noteSuffix} ` +
     'Please reply YES to confirm or NO if unavailable. Reply STOP to opt out.'
   );
 }
@@ -178,6 +213,8 @@ exports.sendBuyerShowingRequests = onCall(
         scheduleId = null,
         availability,
         targets,
+        buyers = [],
+        agentName: agentNameInput = null,
         buyerName = null,
       } = request.data || {};
 
@@ -206,7 +243,9 @@ exports.sendBuyerShowingRequests = onCall(
 
       const profileSnap = await db.collection('users').doc(request.auth.uid).get();
       const profile = profileSnap.exists ? profileSnap.data() : null;
-      const agentName = buyerName || getAgentDisplayName(request.auth.token, profile);
+      const agentName = agentNameInput || getAgentDisplayName(request.auth.token, profile);
+      const household = normalizeBuyers(Array.isArray(buyers) && buyers.length ? buyers : scheduleData.buyers);
+      const householdLabel = formatHouseholdLabel(household, buyerName || '');
       const fromPhone = getTwilioFromNumber();
       const normalizedAgentPhone = normalizePhone(fromPhone);
       const agentEmail = request.auth.token.email || null;
@@ -227,6 +266,7 @@ exports.sendBuyerShowingRequests = onCall(
 
         const body = buildShowingRequestMessage({
           agentName,
+          householdLabel,
           address: target.address || 'the property',
           availability,
           note: target.note,
@@ -273,7 +313,9 @@ exports.sendBuyerShowingRequests = onCall(
       await scheduleRef.set({
         ownerUid: request.auth.uid,
         teamId: teamId || null,
-        buyerName: agentName,
+        agentName,
+        buyers: household,
+        buyerName: householdLabel || agentName,
         availability,
         targets: sentTargets,
         status: sentCount > 0 ? 'requests_sent' : 'draft',
@@ -398,10 +440,14 @@ exports.getBuyerPlan = onCall(async (request) => {
 
     const schedule = scheduleSnap.data();
     const orderedStops = Array.isArray(schedule.orderedStops) ? schedule.orderedStops : [];
+    const household = Array.isArray(schedule.buyers) ? schedule.buyers : [];
+    const householdLabel = formatHouseholdLabel(household, schedule.buyerName || '');
 
     return {
       success: true,
-      buyerName: schedule.buyerName || 'Your agent',
+      buyerName: householdLabel || schedule.agentName || 'Your agent',
+      agentName: schedule.agentName || null,
+      buyers: publicBuyers(household),
       availability: schedule.availability || null,
       orderedStops,
       mapsLink: schedule.mapsLink || null,

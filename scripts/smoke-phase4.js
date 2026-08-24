@@ -40,6 +40,7 @@ for (const file of [
   'src/features/billing/BillingPage.jsx',
   'src/features/buyer/BuyerScheduling.jsx',
   'src/features/buyer/BuyerClientPortal.jsx',
+  'src/features/buyer/buyerHousehold.js',
   'src/features/messages/MessagesInbox.jsx',
   'src/features/messages/useUnreadMessages.js',
   'src/features/contacts/ContactsPage.jsx',
@@ -141,6 +142,22 @@ if (portalSrc.includes('clientPlanTokens')) {
 } else {
   pass('buyer:portal-token-leak');
 }
+
+const buyerHouseholdSrc = read('src/features/buyer/buyerHousehold.js');
+buyerHouseholdSrc.includes('normalizeBuyers') && buyerHouseholdSrc.includes('formatHouseholdLabel')
+  ? pass('buyer:household-helpers')
+  : fail('buyer:household-helpers', 'buyerHousehold.js missing normalize/format helpers');
+
+const buyerScheduleSrc = read('src/features/buyer/BuyerScheduling.jsx');
+buyerScheduleSrc.includes('Add co-borrower') && buyerScheduleSrc.includes('buyers:')
+  ? pass('buyer:household-ui')
+  : fail('buyer:household-ui', 'BuyerScheduling should collect named co-buyers');
+
+const buyerHandlersSrc = read('functions/buyer/handlers.js');
+buyerHandlersSrc.includes('buyers: household') && buyerHandlersSrc.includes('publicBuyers')
+  ? pass('buyer:household-persist')
+  : fail('buyer:household-persist', 'sendBuyerShowingRequests/getBuyerPlan should persist and return buyers');
+
 
 // 5) No hardcoded stripe secret patterns in src/functions
 const badPatterns = [/sk_live_[a-zA-Z0-9]+/, /sk_test_[a-zA-Z0-9]{20,}/, /AC[a-f0-9]{32}/i];

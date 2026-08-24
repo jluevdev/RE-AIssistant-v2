@@ -42,7 +42,7 @@ const HELP_ENTRIES = [
     id: 'buyer-schedule',
     keywords: ['buyer', 'showing', 'showings', 'tour', 'schedule', 'route'],
     answer:
-      'Plan buyer tours under Buyer Agent → Buyer Scheduling. Build a route, send showing requests, and share a plan with your client.',
+      'Plan buyer tours under Buyer Agent → Buyer Scheduling. Add every co-borrower (Buyer 1, Buyer 2, …), send showing requests, and share one plan link with the household.',
     links: [{ to: '/buyer/schedule', label: 'Buyer Scheduling' }],
   },
   {
