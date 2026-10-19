@@ -53,7 +53,9 @@ export default function Hero() {
               </div>
             </div>
           </div>
-          <p className="mt-3 text-center text-xs text-slate-400">Dashboard preview — replace with product screenshot</p>
+          {import.meta.env.DEV && (
+            <p className="mt-3 text-center text-xs text-slate-400">Dashboard preview — replace with product screenshot</p>
+          )}
         </div>
       </div>
     </section>

@@ -1,4 +1,4 @@
-import { normalizePhoneKey } from '../messages/messageUtils';
+import { normalizePhoneKey } from '../messages/messageUtils.js';
 
 const INACTIVE_OFFER_STATUSES = new Set(['declined', 'withdrawn', 'expired', 'rejected', 'cancelled']);
 
@@ -6,6 +6,8 @@ export function timestampToDate(ts) {
   if (!ts) return null;
   if (typeof ts.toDate === 'function') return ts.toDate();
   if (ts instanceof Date) return ts;
+  if (typeof ts.seconds === 'number') return new Date(ts.seconds * 1000);
+  if (typeof ts._seconds === 'number') return new Date(ts._seconds * 1000);
   const date = new Date(ts);
   return Number.isNaN(date.getTime()) ? null : date;
 }
@@ -94,12 +96,20 @@ export function computeDashboardMetrics(
     return price != null ? sum + price : sum;
   }, 0);
 
-  const toursThisMonth = schedules.filter((s) => isThisMonth(s.createdAt, referenceDate)).length;
-  const confirmedTargets = schedules.reduce((sum, schedule) => {
+  const toursCreatedThisMonth = schedules.filter((s) => isThisMonth(s.createdAt, referenceDate)).length;
+  const isOpenShowing = (target) => {
+    if (!(target?.address || target?.sourceUrl)) return false;
+    const status = String(target?.status || 'pending').toLowerCase();
+    return status !== 'declined' && status !== 'cancelled' && status !== 'rejected';
+  };
+  const toursWithShowings = schedules.filter((schedule) => (schedule.targets || []).some(isOpenShowing));
+  const showingScope = toursWithShowings.length > 0 ? toursWithShowings : schedules;
+  const toursScheduled = toursWithShowings.length > 0 ? toursWithShowings.length : toursCreatedThisMonth;
+  const confirmedTargets = showingScope.reduce((sum, schedule) => {
     const confirmed = (schedule.targets || []).filter((t) => t?.status === 'confirmed').length;
     return sum + confirmed;
   }, 0);
-  const pendingTargets = schedules.reduce((sum, schedule) => {
+  const pendingTargets = showingScope.reduce((sum, schedule) => {
     const pending = (schedule.targets || []).filter((t) => (
       (t?.address || t?.sourceUrl) && t?.status !== 'confirmed' && t?.status !== 'declined'
     )).length;
@@ -117,7 +127,9 @@ export function computeDashboardMetrics(
     visitorsAllTime,
     activeOffers,
     offerPipelineUsd,
-    toursThisMonth,
+    toursThisMonth: toursScheduled,
+    toursScheduled,
+    toursCreatedThisMonth,
     confirmedTargets,
     pendingTargets,
     responseRate,

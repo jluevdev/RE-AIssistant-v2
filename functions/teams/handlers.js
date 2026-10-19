@@ -1,6 +1,7 @@
 const { onCall, HttpsError } = require('firebase-functions/v2/https');
 const { admin } = require('../shared/admin');
 const { getFrontendUrl } = require('../billing/stripe');
+const { writePlan } = require('../billing/planRecord');
 const { sendEmail } = require('../shared/email');
 const {
   db,
@@ -264,6 +265,20 @@ exports.acceptInvite = onCall(async (request) => {
         updatedAt: now,
       }, { merge: true });
     });
+
+    const teamAfter = await teamRef.get();
+    const billing = teamAfter.data()?.billing || {};
+    if (billing.status === 'active' || billing.status === 'trialing') {
+      await writePlan(db, uid, {
+        plan: 'premiumTeam',
+        planName: billing.planName || 'Premium Team',
+        status: billing.status,
+        source: 'team',
+        teamId: invite.teamId,
+        stripeSubscriptionId: billing.stripeSubscriptionId || null,
+        stripeCustomerId: billing.stripeCustomerId || null,
+      });
+    }
 
     return {
       success: true,

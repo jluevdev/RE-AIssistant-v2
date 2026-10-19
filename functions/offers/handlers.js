@@ -2,6 +2,7 @@ const { onCall, HttpsError } = require('firebase-functions/v2/https');
 const sendgrid = require('@sendgrid/mail');
 const { admin } = require('../shared/admin');
 const { getUserTeamIdOrNull } = require('../shared/team');
+const { getPublicAppUrl } = require('../shared/publicUrl');
 
 function assertOwner(offer, uid) {
   if (offer.ownerUid && offer.ownerUid !== uid) {
@@ -268,7 +269,7 @@ exports.submitOfferFinalize = onCall(async (request) => {
       if (offer.agentEmail && process.env.SENDGRID_API_KEY) {
         sendgrid.setApiKey(process.env.SENDGRID_API_KEY);
         const fromEmail = process.env.SEND_FROM_EMAIL || 'no-reply@reaissistant.com';
-        const frontendUrl = process.env.FRONTEND_URL || 'https://reaiassistant.com';
+        const frontendUrl = getPublicAppUrl();
         await sendgrid.send({
           to: offer.agentEmail,
           from: { email: fromEmail, name: 'RE AIssistant' },

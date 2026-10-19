@@ -6,7 +6,7 @@ import Logo from '../../../components/layout/Logo';
 import { brand } from '../../../theme/tokens';
 
 const NAV_LINKS = [
-  { label: 'Features', hash: 'features' },
+  { label: 'Features', to: '/features' },
   { label: 'Pricing', hash: 'pricing' },
   { label: 'FAQ', hash: 'faq' },
 ];
@@ -44,14 +44,24 @@ export default function MarketingNav() {
 
         <nav className="hidden items-center gap-6 md:flex" aria-label="Main">
           {NAV_LINKS.map((link) => (
-            <button
-              key={link.label}
-              type="button"
-              onClick={() => handleHashClick(link.hash)}
-              className="text-sm font-medium text-slate-600 hover:text-brand-700"
-            >
-              {link.label}
-            </button>
+            link.to ? (
+              <Link
+                key={link.label}
+                to={link.to}
+                className="text-sm font-medium text-slate-600 hover:text-brand-700"
+              >
+                {link.label}
+              </Link>
+            ) : (
+              <button
+                key={link.label}
+                type="button"
+                onClick={() => handleHashClick(link.hash)}
+                className="text-sm font-medium text-slate-600 hover:text-brand-700"
+              >
+                {link.label}
+              </button>
+            )
           ))}
         </nav>
 
@@ -79,14 +89,25 @@ export default function MarketingNav() {
         <div className="border-t border-slate-200 bg-white px-4 py-4 md:hidden">
           <nav className="flex flex-col gap-3" aria-label="Mobile">
             {NAV_LINKS.map((link) => (
-              <button
-                key={link.label}
-                type="button"
-                className="text-left text-sm font-medium text-slate-700"
-                onClick={() => handleHashClick(link.hash)}
-              >
-                {link.label}
-              </button>
+              link.to ? (
+                <Link
+                  key={link.label}
+                  to={link.to}
+                  className="text-left text-sm font-medium text-slate-700"
+                  onClick={() => setOpen(false)}
+                >
+                  {link.label}
+                </Link>
+              ) : (
+                <button
+                  key={link.label}
+                  type="button"
+                  className="text-left text-sm font-medium text-slate-700"
+                  onClick={() => handleHashClick(link.hash)}
+                >
+                  {link.label}
+                </button>
+              )
             ))}
             <div className="mt-2 flex flex-col gap-2 border-t border-slate-100 pt-4">
               <Button as={Link} to="/login" variant="outline" size="sm" onClick={() => setOpen(false)}>

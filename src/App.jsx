@@ -1,10 +1,13 @@
-import { Routes, Route } from 'react-router-dom';
+import { lazy, Suspense } from 'react';
+import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 
 import RequireAuthLayout from './components/layout/RequireAuthLayout';
 
 import MarketingLayout from './features/marketing/MarketingLayout';
 
 import LandingPage from './features/marketing/pages/LandingPage';
+
+import FeaturesPage from './features/marketing/pages/FeaturesPage';
 
 import PricingPage from './features/marketing/pages/PricingPage';
 
@@ -29,6 +32,8 @@ import PublicCheckIn from './features/openHouse/PublicCheckIn';
 import ListingHub from './features/offers/ListingHub';
 
 import ListingCreate from './features/offers/ListingCreate';
+
+import ListingList from './features/offers/ListingList';
 
 import OfferCompare from './features/offers/OfferCompare';
 
@@ -58,7 +63,17 @@ import AssistantPage from './features/assistant/AssistantPage';
 
 import OverviewDeck from './features/overview/OverviewDeck';
 
+import ShowingsPage from './features/showings/ShowingsPage';
 
+const ShowingsSimulatorPage = import.meta.env.DEV
+  ? lazy(() => import('@showings-simulator'))
+  : null;
+
+function LegacyV2Redirect() {
+  const location = useLocation();
+  const next = location.pathname.replace(/^\/v2/, '') || '/dashboard';
+  return <Navigate to={`${next}${location.search}${location.hash}`} replace />;
+}
 
 export default function App() {
 
@@ -72,6 +87,8 @@ export default function App() {
 
         <Route path="/" element={<LandingPage />} />
 
+        <Route path="/features" element={<FeaturesPage />} />
+
         <Route path="/pricing" element={<PricingPage />} />
 
         <Route path="/privacy" element={<PrivacyPage />} />
@@ -83,6 +100,8 @@ export default function App() {
 
 
       {/* Public app routes — no authenticated shell */}
+
+      <Route path="/v2/*" element={<LegacyV2Redirect />} />
 
       <Route path="/login" element={<LoginPage />} />
 
@@ -102,7 +121,18 @@ export default function App() {
 
       <Route path="/join/:token" element={<JoinTeamPage />} />
 
-
+      {ShowingsSimulatorPage ? (
+        <Route
+          path="/showings/simulator"
+          element={(
+            <Suspense fallback={<p className="p-6 text-sm text-slate-500">Loading simulator…</p>}>
+              <ShowingsSimulatorPage />
+            </Suspense>
+          )}
+        />
+      ) : (
+        <Route path="/showings/simulator" element={<Navigate to="/showings" replace />} />
+      )}
 
       {/* Authenticated routes — wrapped in AppLayout shell */}
 
@@ -111,6 +141,8 @@ export default function App() {
         <Route path="/dashboard" element={<DashboardShell />} />
 
         <Route path="/open-houses" element={<OpenHouseManager />} />
+
+        <Route path="/listings" element={<ListingList />} />
 
         <Route path="/listings/new" element={<ListingCreate />} />
 
@@ -139,6 +171,8 @@ export default function App() {
         <Route path="/line" element={<LinePage />} />
 
         <Route path="/overview" element={<OverviewDeck />} />
+
+        <Route path="/showings" element={<ShowingsPage />} />
 
       </Route>
 

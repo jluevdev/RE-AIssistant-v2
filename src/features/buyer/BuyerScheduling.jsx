@@ -38,6 +38,7 @@ import {
 import { saveBuyerTourOffline } from './buyerScheduleFallback';
 import { formatAvailabilityLabel, formatTime12 } from './buyerTime';
 import { showingStatus, showingStatusHint, showingStatusLabel, showingStatusTone } from './buyerListingStatus';
+import { smartShowingsEnabled } from '../../config/features';
 import ListingThumb from './ListingThumb';
 import useTrialStatus, { blockTrialAction } from '../billing/useTrialStatus';
 import TrialBanner from '../billing/TrialBanner';
@@ -1011,6 +1012,36 @@ export default function BuyerScheduling() {
             <Button variant="outline" onClick={() => setStep(1)}>
               Back
             </Button>
+            {smartShowingsEnabled && (
+              <Button
+                variant="outline"
+                onClick={async () => {
+                  const ready = targets.filter((target) => target.address && (target.listingAgentPhone || target.listingAgentEmail));
+                  if (!ready.length) {
+                    toast.error('Add an address and a phone or email first');
+                    return;
+                  }
+                  try {
+                    for (const target of ready) {
+                      await httpsCallable(functions, 'queueBuyerShowing')({
+                        scheduleId: scheduleId || null,
+                        targetId: target.id || null,
+                        address: target.address,
+                        phone: target.listingAgentPhone,
+                        email: target.listingAgentEmail,
+                        contactName: target.listingAgentName,
+                        window: availability,
+                      });
+                    }
+                    toast.success('Queued in SmartShowings. Approve each text before it can send.');
+                  } catch (error) {
+                    toast.error(error.message || 'Could not queue SmartShowings');
+                  }
+                }}
+              >
+                Queue SmartShowings
+              </Button>
+            )}
             <Button variant="accent" loading={sending} disabled={sending || !canSend} onClick={sendRequests}>
               <Send className="w-4 h-4" />
               {sending ? 'Sending…' : 'Review & send showing requests'}

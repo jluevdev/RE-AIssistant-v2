@@ -12,7 +12,7 @@ function getAdmin() {
 }
 
 function getFrontendUrl() {
-  return (process.env.FRONTEND_URL || 'https://reaiassistant.com').replace(/\/$/, '');
+  return require('../shared/publicUrl').getPublicAppUrl();
 }
 
 function extractListingUrls(text) {

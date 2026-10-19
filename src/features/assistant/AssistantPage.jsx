@@ -49,7 +49,7 @@ export default function AssistantPage() {
       .then(({ data }) => {
         if (cancelled || !data) return;
         setSaved(data);
-        setProvider(data.configured ? data.provider : 'grok');
+        setProvider(data.configured && data.provider && data.provider !== 'vertex' ? data.provider : 'vertex');
       })
       .catch(() => {});
     httpsCallable(functions, 'getPlatformAi')()
@@ -217,22 +217,24 @@ export default function AssistantPage() {
       <Card>
         <h2 className="font-semibold text-slate-900">Platform Grok</h2>
         <p className="mt-1 text-sm text-slate-600">
-          {platform.configured
-            ? `Every account uses the platform key${platform.last4 ? ` ending in ${platform.last4}` : ''}.`
-            : 'No platform key yet. A broker pastes one xAI key here and every account can use Grok.'}
+          {platform.source === 'secret'
+            ? 'The xAI key lives in the server secret XAI_API_KEY. You do not paste a key to use the assistant.'
+            : platform.configured
+              ? `A saved platform key is in use${platform.last4 ? ` (ending ${platform.last4})` : ''}. Prefer the XAI_API_KEY secret when you can.`
+              : 'The assistant uses the platform XAI_API_KEY secret when it is set. A pasted key is only a fallback.'}
         </p>
-        {(!platform.configured || platform.canEdit) && (
+        {platform.canEdit && platform.source !== 'secret' && (
           <form onSubmit={savePlatform} className="mt-4 flex gap-2">
             <input
               type="password"
               value={platformKey}
               onChange={(event) => setPlatformKey(event.target.value)}
-              placeholder="xai- key"
+              placeholder="Optional fallback xai- key"
               autoComplete="off"
               className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm"
             />
-            <Button type="submit" loading={savingKey} disabled={savingKey || !platformKey.trim()}>
-              Save platform key
+            <Button type="submit" variant="outline" loading={savingKey} disabled={savingKey || !platformKey.trim()}>
+              Save fallback
             </Button>
           </form>
         )}
@@ -281,9 +283,9 @@ export default function AssistantPage() {
       </Card>
 
       <Card>
-        <h2 className="font-semibold text-slate-900">Plan B: your own key</h2>
+        <h2 className="font-semibold text-slate-900">Optional: bring your own key</h2>
         <p className="mt-1 text-sm text-slate-600">
-          Optional. Turn this on only if this account should stop using the platform Grok key.
+          Leave this on Platform Grok. Paste a key only if this account should stop using the server key.
           {saved.configured ? ` Current key ends in ${saved.last4} (${saved.provider}).` : ''}
         </p>
         <form onSubmit={saveKey} className="mt-4 space-y-3">

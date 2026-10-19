@@ -2,6 +2,8 @@ const { onCall, onRequest, HttpsError } = require('firebase-functions/v2/https')
 const { requireEnv } = require('../env');
 const { admin } = require('../shared/admin');
 const { getStripe, assertAllowedPriceId, getFrontendUrl } = require('./stripe');
+const { derivePlan } = require('./planStatus');
+const { writePlan, writeTeamMemberPlans } = require('./planRecord');
 
 const BILLING_SECRETS = [
   'STRIPE_SECRET_KEY',
@@ -139,7 +141,10 @@ async function handleCheckoutSessionCompleted(session) {
   const seats = Number(session.metadata?.seats) || 1;
 
   if (kind === 'team' && teamId) {
-    await admin.firestore().collection('teams').doc(teamId).set({
+    const teamRef = admin.firestore().collection('teams').doc(teamId);
+    const teamSnap = await teamRef.get();
+    const used = teamSnap.exists ? (teamSnap.data().seats?.used ?? teamSnap.data().memberCount ?? 1) : 1;
+    await teamRef.set({
       billing: {
         plan: planKey || 'premiumTeam',
         planName: planName || 'Premium Team',
@@ -152,9 +157,16 @@ async function handleCheckoutSessionCompleted(session) {
       },
       seats: {
         purchased: seats,
+        used,
       },
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     }, { merge: true });
+    await writeTeamMemberPlans(admin.firestore(), teamId, {
+      planName: planName || 'Premium Team',
+      status: 'active',
+      stripeCustomerId: session.customer || null,
+      stripeSubscriptionId: session.subscription || null,
+    });
 
     console.log(`Team checkout completed for team ${teamId} seats ${seats}`);
     return;
@@ -165,18 +177,14 @@ async function handleCheckoutSessionCompleted(session) {
     return;
   }
 
-  await admin.firestore().collection('users').doc(userId).set({
-    subscription: {
-      status: 'active',
-      plan: planKey || planName,
-      planName,
-      stripeCustomerId: session.customer || null,
-      stripeSubscriptionId: session.subscription || null,
-      stripeSessionId: session.id,
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-    },
-    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-  }, { merge: true });
+  await writePlan(admin.firestore(), userId, {
+    plan: planKey || planName,
+    planName,
+    status: 'active',
+    source: 'stripe',
+    stripeCustomerId: session.customer || null,
+    stripeSubscriptionId: session.subscription || null,
+  });
 
   console.log(`Checkout completed for user ${userId} plan ${planName}`);
 }
@@ -207,24 +215,28 @@ async function handleSubscriptionCreated(subscription) {
       },
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     }, { merge: true });
+    await writeTeamMemberPlans(admin.firestore(), teamId, {
+      planName: subscription.metadata?.planName || 'Premium Team',
+      status: subscription.status || 'active',
+      stripeSubscriptionId: subscription.id,
+      stripeCustomerId: subscription.customer || null,
+      currentPeriodEnd: subscription.current_period_end || null,
+    });
     return;
   }
 
   const userId = subscription.metadata?.userId;
   if (!userId) return;
 
-  await admin.firestore().collection('users').doc(userId).set({
-    subscription: {
-      status: subscription.status || 'active',
-      planName: subscription.metadata?.planName || null,
-      plan: subscription.metadata?.planKey || subscription.metadata?.planName || null,
-      stripeSubscriptionId: subscription.id,
-      stripeCustomerId: subscription.customer || null,
-      currentPeriodEnd: subscription.current_period_end || null,
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-    },
-    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-  }, { merge: true });
+  await writePlan(admin.firestore(), userId, {
+    plan: subscription.metadata?.planKey || subscription.metadata?.planName || 'paid',
+    planName: subscription.metadata?.planName || subscription.metadata?.planKey || 'Subscription',
+    status: subscription.status || 'active',
+    source: 'stripe',
+    stripeSubscriptionId: subscription.id,
+    stripeCustomerId: subscription.customer || null,
+    currentPeriodEnd: subscription.current_period_end || null,
+  });
 }
 
 async function handleSubscriptionUpdated(subscription) {
@@ -233,8 +245,12 @@ async function handleSubscriptionUpdated(subscription) {
   const seats = Number(subscription.metadata?.seats) || subscription.items?.data?.[0]?.quantity || null;
 
   if (kind === 'team' && teamId) {
+    const teamRef = admin.firestore().collection('teams').doc(teamId);
+    const teamSnap = await teamRef.get();
+    const previous = teamSnap.exists ? teamSnap.data() : {};
     const patch = {
       billing: {
+        ...(previous.billing || {}),
         status: subscription.status,
         currentPeriodEnd: subscription.current_period_end || null,
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -242,23 +258,33 @@ async function handleSubscriptionUpdated(subscription) {
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     };
     if (seats) {
-      patch.seats = { purchased: seats };
+      patch.seats = {
+        ...(previous.seats || {}),
+        purchased: seats,
+      };
     }
-    await admin.firestore().collection('teams').doc(teamId).set(patch, { merge: true });
+    await teamRef.set(patch, { merge: true });
+    await writeTeamMemberPlans(admin.firestore(), teamId, {
+      status: subscription.status,
+      currentPeriodEnd: subscription.current_period_end || null,
+      planName: subscription.metadata?.planName || 'Premium Team',
+    });
     return;
   }
 
   const userId = subscription.metadata?.userId;
   if (!userId) return;
 
-  await admin.firestore().collection('users').doc(userId).set({
-    subscription: {
-      status: subscription.status,
-      currentPeriodEnd: subscription.current_period_end || null,
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-    },
-    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-  }, { merge: true });
+  const existing = await admin.firestore().collection('subscriptions').doc(userId).get();
+  const prior = existing.exists ? existing.data() : {};
+  await writePlan(admin.firestore(), userId, {
+    ...prior,
+    status: subscription.status,
+    currentPeriodEnd: subscription.current_period_end || null,
+    source: prior.source || 'stripe',
+    plan: prior.plan || subscription.metadata?.planKey || 'paid',
+    planName: prior.planName || subscription.metadata?.planName || 'Subscription',
+  });
 }
 
 async function handleSubscriptionDeleted(subscription) {
@@ -273,19 +299,25 @@ async function handleSubscriptionDeleted(subscription) {
       },
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     }, { merge: true });
+    await writeTeamMemberPlans(admin.firestore(), teamId, {
+      status: 'canceled',
+      planName: subscription.metadata?.planName || 'Premium Team',
+    });
     return;
   }
 
   const userId = subscription.metadata?.userId;
   if (!userId) return;
 
-  await admin.firestore().collection('users').doc(userId).set({
-    subscription: {
-      status: 'canceled',
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-    },
-    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-  }, { merge: true });
+  const existing = await admin.firestore().collection('subscriptions').doc(userId).get();
+  const prior = existing.exists ? existing.data() : {};
+  await writePlan(admin.firestore(), userId, {
+    ...prior,
+    status: 'canceled',
+    source: prior.source || 'stripe',
+    plan: prior.plan || 'paid',
+    planName: prior.planName || 'Subscription',
+  });
 }
 
 async function handleInvoicePaymentSucceeded(invoice) {
@@ -295,14 +327,27 @@ async function handleInvoicePaymentSucceeded(invoice) {
   const userId = subscription.metadata?.userId;
   if (!userId) return;
 
-  await admin.firestore().collection('users').doc(userId).set({
-    subscription: {
+  if (subscription.metadata?.kind === 'team' && subscription.metadata?.teamId) {
+    await writeTeamMemberPlans(admin.firestore(), subscription.metadata.teamId, {
       status: 'active',
+      planName: subscription.metadata?.planName || 'Premium Team',
+      stripeSubscriptionId: subscription.id,
+      stripeCustomerId: subscription.customer || null,
       currentPeriodEnd: subscription.current_period_end || null,
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-    },
-    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-  }, { merge: true });
+    });
+    return;
+  }
+  const existing = await admin.firestore().collection('subscriptions').doc(userId).get();
+  const prior = existing.exists ? existing.data() : {};
+  await writePlan(admin.firestore(), userId, {
+    ...prior,
+    status: 'active',
+    source: prior.source || 'stripe',
+    plan: prior.plan || subscription.metadata?.planKey || 'paid',
+    planName: prior.planName || subscription.metadata?.planName || 'Subscription',
+    stripeSubscriptionId: subscription.id,
+    currentPeriodEnd: subscription.current_period_end || null,
+  });
 }
 
 async function handleInvoicePaymentFailed(invoice) {
@@ -312,11 +357,41 @@ async function handleInvoicePaymentFailed(invoice) {
   const userId = subscription.metadata?.userId;
   if (!userId) return;
 
-  await admin.firestore().collection('users').doc(userId).set({
-    subscription: {
-      status: 'past_due',
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-    },
-    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-  }, { merge: true });
+  const existing = await admin.firestore().collection('subscriptions').doc(userId).get();
+  const prior = existing.exists ? existing.data() : {};
+  await writePlan(admin.firestore(), userId, {
+    ...prior,
+    status: 'past_due',
+    source: prior.source || 'stripe',
+    plan: prior.plan || 'paid',
+    planName: prior.planName || 'Subscription',
+  });
 }
+
+exports.ensurePlanRecord = onCall(async (request) => {
+  if (!request.auth) throw new HttpsError('unauthenticated', 'Must be authenticated');
+  const uid = request.auth.uid;
+  const db = admin.firestore();
+  const existing = await db.collection('subscriptions').doc(uid).get();
+  if (existing.exists && existing.data()?.source) {
+    const data = existing.data();
+    return {
+      plan: data.plan,
+      planName: data.planName,
+      status: data.status,
+      source: data.source,
+      endDate: data.endDate || null,
+      teamId: data.teamId || null,
+    };
+  }
+  const userSnap = await db.collection('users').doc(uid).get();
+  const user = userSnap.exists ? userSnap.data() : {};
+  let team = null;
+  if (user.teamId) {
+    const teamSnap = await db.collection('teams').doc(user.teamId).get();
+    if (teamSnap.exists) team = { id: teamSnap.id, ...teamSnap.data() };
+  }
+  const derived = derivePlan({ user, team });
+  await writePlan(db, uid, derived);
+  return derived;
+});

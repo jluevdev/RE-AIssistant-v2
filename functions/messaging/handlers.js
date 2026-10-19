@@ -16,6 +16,7 @@ const {
   patchRouteCandidate,
 } = require('../shared/smsRouting');
 const { handleAgentLineInbound } = require('../line/inbound');
+const { handleShowingInbound } = require('../showings/handlers');
 
 function twiml(message) {
   const body = message
@@ -153,6 +154,17 @@ exports.smsWebhook = onRequest(
         }, { merge: true });
         res.set('Content-Type', 'text/xml');
         res.send(twiml('You are opted in. Reply STOP to opt out.'));
+        return;
+      }
+
+      const showingResult = await handleShowingInbound({
+        db,
+        fromPhone: normalizedContactPhone,
+        body: messageBody,
+      });
+      if (showingResult?.handled) {
+        res.set('Content-Type', 'text/xml');
+        res.send(twiml(showingResult.reply || ''));
         return;
       }
 

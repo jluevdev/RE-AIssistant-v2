@@ -4,15 +4,15 @@ import { httpsCallable } from 'firebase/functions';
 import { functions } from '../../config/firebase';
 import { useAuth } from '../../contexts/AuthContext';
 import { getConfiguredPlans } from '../../config/stripe';
+import usePlanStatus from './usePlanStatus';
 import { Badge, Button, Card, EmptyState, PageHeader, toast } from '../../components/ui';
 
 export default function BillingPage() {
-  const { currentUser, userProfile } = useAuth();
+  const { currentUser } = useAuth();
+  const planStatus = usePlanStatus();
   const [loadingPlan, setLoadingPlan] = useState(null);
   const plans = getConfiguredPlans();
-  const subscription = userProfile?.subscription;
-  const planName = subscription?.planName || subscription?.plan || 'trial';
-  const status = subscription?.status;
+  const planName = planStatus.pending ? 'Checking plan…' : planStatus.label;
 
   async function startCheckout(plan) {
     if (!plan.id) {
@@ -50,9 +50,8 @@ export default function BillingPage() {
         backTo="/dashboard"
         backLabel="Dashboard"
         actions={
-          <Badge tone={status === 'active' || status === 'trialing' ? 'success' : 'neutral'}>
+          <Badge tone={planStatus.paid ? 'success' : 'neutral'}>
             {planName}
-            {status ? ` · ${status}` : ''}
           </Badge>
         }
       />
@@ -62,8 +61,7 @@ export default function BillingPage() {
         <p className="font-medium text-slate-900">{currentUser?.email}</p>
         <p className="mt-2 text-sm text-slate-600">
           Current plan:{' '}
-          <span className="font-medium capitalize">{planName}</span>
-          {status ? ` (${status})` : ''}
+          <span className="font-medium">{planName}</span>
         </p>
       </Card>
 
@@ -71,7 +69,7 @@ export default function BillingPage() {
         <Card className="border-amber-200 bg-amber-50">
           <EmptyState
             title="No Stripe price IDs configured"
-            description="Add VITE_STRIPE_PRICE_* values to .env (test mode prices)."
+            description="Add VITE_STRIPE_PRICE_* values before checkout can start."
           />
         </Card>
       ) : (
@@ -113,9 +111,11 @@ export default function BillingPage() {
         </div>
       )}
 
-      <p className="text-xs text-slate-500">
-        Use Stripe test cards (e.g. 4242 4242 4242 4242). Webhook must point to the deployed `stripeWebhook` function URL.
-      </p>
+      {import.meta.env.DEV && (
+        <p className="text-xs text-slate-500">
+          Use Stripe test cards (e.g. 4242 4242 4242 4242). Webhook must point to the deployed stripeWebhook function URL.
+        </p>
+      )}
     </div>
   );
 }

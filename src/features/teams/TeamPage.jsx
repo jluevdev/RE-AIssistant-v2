@@ -36,9 +36,6 @@ const ROLE_LABELS = {
   agent: 'Agent',
 };
 
-/** Stripe team checkout needs Blaze billing. Keep off until GCP billing is linked. */
-const TEAM_STRIPE_CHECKOUT_ENABLED = false;
-
 function roleTone(role) {
   if (role === 'owner') return 'brand';
   if (role === 'admin') return 'accent';
@@ -232,12 +229,6 @@ export default function TeamPage() {
   }
 
   async function handleTeamCheckout() {
-    if (!TEAM_STRIPE_CHECKOUT_ENABLED) {
-      toast.error(
-        'Checkout is unavailable until Google Cloud billing is enabled. You already have trial seats — use Invite member.',
-      );
-      return;
-    }
     setBusy('checkout');
     try {
       const createTeamCheckoutSession = httpsCallable(functions, 'createTeamCheckoutSession');
@@ -251,13 +242,13 @@ export default function TeamPage() {
       }
       throw new Error('Checkout URL missing');
     } catch (error) {
-      const code = error?.code || '';
       const raw = error?.message || '';
-      const friendly =
-        code === 'functions/internal' || /internal/i.test(raw) || /billing is disabled/i.test(raw)
-          ? 'Checkout is unavailable until Google Cloud billing is enabled. You already have trial seats — use Invite member.'
-          : raw || 'Failed to start team checkout';
-      toast.error(friendly);
+      const billingOff = /billing is disabled|billing account/i.test(raw);
+      toast.error(
+        billingOff
+          ? 'Checkout is wired to Stripe, but Google Cloud billing is not enabled on this project. Turn on the Blaze plan in Google Cloud Console, then try again.'
+          : (raw || 'Failed to start team checkout'),
+      );
     } finally {
       setBusy('');
     }
@@ -344,7 +335,7 @@ export default function TeamPage() {
             Invite member
           </Button>
         )}
-        {isOwner && TEAM_STRIPE_CHECKOUT_ENABLED && (
+        {isOwner && (
           <Tooltip content="Premium Team billing — purchase seats before inviting agents.">
             <Button variant="secondary" onClick={handleTeamCheckout} disabled={busy === 'checkout'}>
               Add seats / billing
@@ -364,33 +355,26 @@ export default function TeamPage() {
           <p className="mt-1 text-sm text-slate-500">
             Current: {seatsUsed} used of {seatsPurchased} seats.
           </p>
-          {!TEAM_STRIPE_CHECKOUT_ENABLED ? (
-            <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-3 text-sm text-amber-900">
-              <p className="font-medium">Stripe checkout is temporarily unavailable</p>
-              <p className="mt-1">
-                Google Cloud billing is not enabled on this project, so Checkout cannot start.
-                This team already has trial seats — invite your partner with <span className="font-medium">Invite member</span>.
-              </p>
-            </div>
-          ) : (
-            <div className="mt-4 flex flex-wrap items-end gap-3">
-              <Select
-                label="Seats to purchase"
-                value={String(seatCount)}
-                onChange={(e) => setSeatCount(Number(e.target.value))}
-                className="w-40"
-              >
-                {[3, 5, 10, 15, 25, 50].map((n) => (
-                  <option key={n} value={n}>
-                    {n} seats
-                  </option>
-                ))}
-              </Select>
-              <Button onClick={handleTeamCheckout} disabled={busy === 'checkout'}>
-                {busy === 'checkout' ? 'Redirecting…' : 'Checkout'}
-              </Button>
-            </div>
-          )}
+          <div className="mt-4 flex flex-wrap items-end gap-3">
+            <Select
+              label="Seats to purchase"
+              value={String(seatCount)}
+              onChange={(e) => setSeatCount(Number(e.target.value))}
+              className="w-40"
+            >
+              {[3, 5, 10, 15, 25, 50].map((n) => (
+                <option key={n} value={n}>
+                  {n} seats
+                </option>
+              ))}
+            </Select>
+            <Button onClick={handleTeamCheckout} disabled={busy === 'checkout'}>
+              {busy === 'checkout' ? 'Redirecting…' : 'Checkout'}
+            </Button>
+          </div>
+          <p className="mt-3 text-xs text-slate-500">
+            Stripe Checkout runs in Cloud Functions. If Google Cloud billing (Blaze) is off, the call fails until an owner enables it in Google Cloud Console.
+          </p>
         </Card>
       )}
 

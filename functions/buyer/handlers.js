@@ -18,7 +18,7 @@ const CONFIRM_RE = /\b(confirm(ed)?|yes|yep|yeah|ok(ay)?|works|available|sounds 
 const DECLINE_RE = /\b(no|decline(d)?|unavailable|can't|cannot|won't|not available|pass)\b/i;
 
 function getFrontendUrl() {
-  return (process.env.FRONTEND_URL || 'https://reaiassistant.com').replace(/\/$/, '');
+  return require('../shared/publicUrl').getPublicAppUrl();
 }
 
 const MAX_CLIENT_NOTE = 600;

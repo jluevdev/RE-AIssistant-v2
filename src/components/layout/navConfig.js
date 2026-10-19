@@ -13,6 +13,7 @@ import {
   Phone,
   Presentation,
 } from 'lucide-react';
+import { smartShowingsEnabled } from '../../config/features';
 
 /**
  * Central nav definition used by both the desktop sidebar and mobile menus.
@@ -37,13 +38,18 @@ export const NAV_SECTIONS = [
     label: 'Listing Agent',
     items: [
       { to: '/open-houses', label: 'Open Houses', icon: DoorOpen },
-      { to: '/listings/new', label: 'Listings', icon: FileText },
+      { to: '/listings', label: 'Listings', icon: FileText },
       { to: '/offers', label: 'Offers', icon: GitCompare },
     ],
   },
   {
     label: 'Buyer Agent',
-    items: [{ to: '/buyer/schedule', label: 'Tours', icon: CalendarClock }],
+    items: [
+      { to: '/buyer/schedule', label: 'Tours', icon: CalendarClock },
+      ...(smartShowingsEnabled
+        ? [{ to: '/showings', label: 'SmartShowings', icon: Sparkles }]
+        : []),
+    ],
   },
   {
     label: 'Team',

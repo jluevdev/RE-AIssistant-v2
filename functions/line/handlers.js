@@ -100,18 +100,23 @@ async function getLineHome(request) {
   const db = admin.firestore();
   const { user, team } = await loadAgentContext(db, uid);
   const level = effectiveGuardrail(user, team);
-  const auditsSnap = await db.collection('users').doc(uid).collection('guardrailAudits').limit(20).get();
-  const recent = auditsSnap.docs
-    .map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }))
-    .sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0))
-    .slice(0, 8)
-    .map((row) => ({
-      id: row.id,
-      type: row.type || null,
-      kind: row.kind || null,
-      warning: row.warning || null,
-      level: row.level || null,
-    }));
+  let recent = [];
+  try {
+    const auditsSnap = await db.collection('users').doc(uid).collection('guardrailAudits').limit(20).get();
+    recent = auditsSnap.docs
+      .map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }))
+      .sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0))
+      .slice(0, 8)
+      .map((row) => ({
+        id: row.id,
+        type: row.type || null,
+        kind: row.kind || null,
+        warning: row.warning || null,
+        level: row.level || null,
+      }));
+  } catch (error) {
+    console.warn('getLineHome audits skipped:', error.message);
+  }
   const pending = user.pendingAction && !pendingIsExpired(user.pendingAction) ? {
     id: user.pendingAction.id,
     kind: user.pendingAction.kind,

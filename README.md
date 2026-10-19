@@ -69,3 +69,52 @@ functions/
 ## Migration phases
 
 See the surgical fork plan. Phase 2 scaffold only — feature ports start at Phase 3.
+
+## SmartShowings
+
+SmartShowings is the showing-coordination assistant inside REAIssistant. It is **on** unless either flag is the string `false`:
+
+- Web app: `VITE_SMART_SHOWINGS_ENABLED` (default on; set `false` and rebuild to hide it)
+- Cloud Functions: `SMART_SHOWINGS_ENABLED` (default on; see `functions/env.example`)
+
+Outbound SMS does **not** leave the project unless you change one variable after A2P 10DLC is approved:
+
+```bash
+SMART_SHOWINGS_SMS_MODE=live
+```
+
+Email is the same kind of change, separately: `SMART_SHOWINGS_EMAIL_MODE=live`. Both default to `mock`. The flow chart is `docs/smartshowings-flow.md`. Check it with:
+
+```bash
+npm run test:smartshowings
+```
+
+In a Vite dev server, `/showings/simulator` walks those steps locally. The route is omitted from production builds. The simulator does not call Twilio, SendGrid, or xAI.
+
+What the first version does:
+
+- Buyer-side: from a tour stop, queue a plain SMS (or email if there is no mobile) to the listing agent, including when they are not a user. The text names the AI assistant and the agent, and includes STOP.
+- Listing-side: a showing profile per listing, and a one-tap approval (`1` approve, `2` suggest a time, `3` decline) before a confirmation is recorded.
+- Separate 1:1 threads. Replies of YES / NO / a suggested time update the tour stop. Unclear replies wait for a person.
+- Business-card photo extraction uses the server xAI key. Results are Verified, Partial, or Failed.
+- Every proposed outbound message sits in an approval queue with a hash-chained audit log.
+- Quiet hours are 8:00 a.m.–8:00 p.m. Pacific. STOP opts that number out.
+
+What is stubbed:
+
+- California DRE has no official API. The lookup adapter returns unknown and does not scrape the public site. A person can mark Partial as Verified (“listing-agent attested”). Failed cannot be upgraded.
+- The assistant never sends lockbox, gate, alarm, or other access details. That stays human-only.
+- No AI voice calls.
+- No automatic send when quiet hours end (the item stays in the queue).
+- No assistant-to-assistant signatures, ShowingTime, or calendar sync.
+
+## Owner steps before production traffic
+
+These are console steps. The app does not turn them on by itself.
+
+1. **Google Cloud billing (Blaze).** Firebase → project `realestatescheduler-fa876` → Upgrade, or Google Cloud Console → Billing, and link a billing account. Cloud Functions cannot call Stripe until this is on. Team and plan checkout in the app already call Stripe; they fail until billing is enabled.
+2. **Stripe live keys.** Replace the test secret, webhook secret, publishable key, and price IDs. Point the Stripe webhook at the deployed `stripeWebhook` URL. Do not commit keys. Plan status is written to `subscriptions/{uid}` from the webhook; the app reads that record.
+3. **Twilio A2P 10DLC.** Register REAIssistant as the brand (campaign, opt-in, HELP/STOP, privacy and terms) before production SMS. Use Twilio test credentials in development. Keep `SMART_SHOWINGS_SMS_MODE=mock` until registration is approved.
+4. **xAI secret.** `firebase functions:secrets:set XAI_API_KEY` with the platform key. Agents are not asked to paste a key. A bring-your-own key on the Assistant page is optional.
+
+Do not deploy from this change set unless you mean to. Do not use Stripe live mode or send real SMS from tests.

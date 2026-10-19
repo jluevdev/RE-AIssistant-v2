@@ -158,7 +158,7 @@ export const footer = {
   tagline: brand.tagline,
   columns: {
     product: [
-      { label: 'Features', href: '/#features' },
+      { label: 'Features', to: '/features' },
       { label: 'Pricing', href: '/#pricing' },
       { label: 'Sign up', to: '/signup' },
     ],

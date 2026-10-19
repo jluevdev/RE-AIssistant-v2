@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="360" viewBox="0 0 640 360">
+  <rect width="640" height="360" fill="#0f2744"/>
+  <rect x="28" y="28" width="584" height="304" rx="16" fill="#f8fafc"/>
+  <text x="56" y="110" font-family="Georgia, serif" font-size="42" fill="#0f2744">Maria Chen</text>
+  <text x="56" y="156" font-family="Arial, sans-serif" font-size="22" fill="#334155">REALTOR · Harbor Realty</text>
+  <text x="56" y="214" font-family="Arial, sans-serif" font-size="20" fill="#0f2744">DRE #01234567</text>
+  <text x="56" y="252" font-family="Arial, sans-serif" font-size="20" fill="#334155">213-555-0199</text>
+  <text x="56" y="290" font-family="Arial, sans-serif" font-size="20" fill="#334155">maria@harbor.example</text>
+</svg>
