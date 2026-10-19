@@ -29,12 +29,13 @@ import {
 } from '../../features/tester/TesterChecklistContext';
 import TesterChecklistOverlay from '../../features/tester/TesterChecklistOverlay';
 import DeleteAccountModal from '../../features/account/DeleteAccountModal';
+import usePlanStatus from '../../features/billing/usePlanStatus';
 
 const SIDEBAR_STORAGE_KEY = 'reai.sidebar.collapsed';
 
-function planLabel(subscription) {
-  if (!subscription) return 'Trial';
-  return subscription.planName || subscription.plan || 'Trial';
+function planLabel(plan) {
+  if (!plan || plan.pending) return 'Checking plan…';
+  return plan.label || 'Free trial';
 }
 
 function NavItem({ item, collapsed, onNavigate, unreadCount = 0 }) {
@@ -379,7 +380,8 @@ function AppLayoutInner({ children }) {
   const [sheetOpen, setSheetOpen] = useState(false);
 
   const email = currentUser?.email || '';
-  const plan = planLabel(userProfile?.subscription);
+  const planStatus = usePlanStatus();
+  const plan = planLabel(planStatus);
   const assistantHidden = Boolean(userProfile?.personalAssistant?.hidden);
 
   async function toggleAssistant() {

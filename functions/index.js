@@ -13,6 +13,7 @@ const account = require('./account');
 const growth = require('./growth');
 const line = require('./line/handlers');
 const esign = require('./esign/handlers');
+const showings = require('./showings');
 
 module.exports = {
   ...health,
@@ -28,4 +29,5 @@ module.exports = {
   ...growth,
   ...line,
   ...esign,
+  ...showings,
 };

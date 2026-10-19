@@ -1,10 +1,12 @@
-import { Routes, Route } from 'react-router-dom';
+import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 
 import RequireAuthLayout from './components/layout/RequireAuthLayout';
 
 import MarketingLayout from './features/marketing/MarketingLayout';
 
 import LandingPage from './features/marketing/pages/LandingPage';
+
+import FeaturesPage from './features/marketing/pages/FeaturesPage';
 
 import PricingPage from './features/marketing/pages/PricingPage';
 
@@ -29,6 +31,8 @@ import PublicCheckIn from './features/openHouse/PublicCheckIn';
 import ListingHub from './features/offers/ListingHub';
 
 import ListingCreate from './features/offers/ListingCreate';
+
+import ListingList from './features/offers/ListingList';
 
 import OfferCompare from './features/offers/OfferCompare';
 
@@ -58,7 +62,13 @@ import AssistantPage from './features/assistant/AssistantPage';
 
 import OverviewDeck from './features/overview/OverviewDeck';
 
+import ShowingsPage from './features/showings/ShowingsPage';
 
+function LegacyV2Redirect() {
+  const location = useLocation();
+  const next = location.pathname.replace(/^\/v2/, '') || '/dashboard';
+  return <Navigate to={`${next}${location.search}${location.hash}`} replace />;
+}
 
 export default function App() {
 
@@ -72,6 +82,8 @@ export default function App() {
 
         <Route path="/" element={<LandingPage />} />
 
+        <Route path="/features" element={<FeaturesPage />} />
+
         <Route path="/pricing" element={<PricingPage />} />
 
         <Route path="/privacy" element={<PrivacyPage />} />
@@ -83,6 +95,8 @@ export default function App() {
 
 
       {/* Public app routes — no authenticated shell */}
+
+      <Route path="/v2/*" element={<LegacyV2Redirect />} />
 
       <Route path="/login" element={<LoginPage />} />
 
@@ -112,6 +126,8 @@ export default function App() {
 
         <Route path="/open-houses" element={<OpenHouseManager />} />
 
+        <Route path="/listings" element={<ListingList />} />
+
         <Route path="/listings/new" element={<ListingCreate />} />
 
         <Route path="/offers" element={<OfferCompare />} />
@@ -139,6 +155,8 @@ export default function App() {
         <Route path="/line" element={<LinePage />} />
 
         <Route path="/overview" element={<OverviewDeck />} />
+
+        <Route path="/showings" element={<ShowingsPage />} />
 
       </Route>
 

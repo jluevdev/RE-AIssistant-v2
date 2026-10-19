@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom';
 
 export default function TrialBanner({ trial, className = '' }) {
-  if (!trial || trial.paid || !trial.isTrial) return null;
+  if (!trial || trial.pending || trial.paid || !trial.isTrial) return null;
 
   if (trial.expired) {
     return (

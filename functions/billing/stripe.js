@@ -27,7 +27,8 @@ function assertAllowedPriceId(priceId) {
 }
 
 function getFrontendUrl() {
-  return process.env.FRONTEND_URL || 'https://reaissistant.com';
+  const { getPublicAppUrl } = require('../shared/publicUrl');
+  return getPublicAppUrl();
 }
 
 module.exports = {

@@ -298,6 +298,41 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    match /subscriptions/{userId} {
+      allow read: if isOwner(userId);
+      allow write: if false;
+    }
+
+    match /showingApprovals/{id} {
+      allow read: if isSignedIn() && resource.data.ownerUid == request.auth.uid;
+      allow write: if false;
+    }
+
+    match /showingThreads/{id} {
+      allow read: if isSignedIn() && resource.data.ownerUid == request.auth.uid;
+      allow write: if false;
+    }
+
+    match /showingMessages/{id} {
+      allow read: if isSignedIn() && resource.data.ownerUid == request.auth.uid;
+      allow write: if false;
+    }
+
+    match /showingProfiles/{id} {
+      allow read: if isSignedIn() && resource.data.ownerUid == request.auth.uid;
+      allow write: if false;
+    }
+
+    match /showingAudits/{id} {
+      allow read: if isSignedIn() && resource.data.ownerUid == request.auth.uid;
+      allow write: if false;
+    }
+
+    match /counterpartyVerifications/{id} {
+      allow read: if isSignedIn() && resource.data.ownerUid == request.auth.uid;
+      allow write: if false;
+    }
+
     match /{document=**} {
       allow read, write: if false;
     }

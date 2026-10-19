@@ -60,7 +60,7 @@ export default function ListingCreate() {
         icon={FileText}
         title="Create Listing"
         subtitle="Spin up a public listing hub for offer submissions."
-        backTo="/dashboard"
+        backTo="/listings"
         backLabel="Dashboard"
       />
       <Card>

@@ -10,6 +10,7 @@
     "smoke:phase4": "node scripts/smoke-phase4.js",
     "smoke:phase5": "node scripts/smoke-phase4.js",
     "verify:env": "node scripts/verify-env.js",
+    "test": "node --test functions/showings/showings.test.js functions/shared/publicUrl.test.js functions/billing/planStatus.test.js src/features/billing/planStatus.test.js src/features/dashboard/dashboardMetrics.test.js",
     "clean": "rimraf dist"
   },
   "dependencies": {

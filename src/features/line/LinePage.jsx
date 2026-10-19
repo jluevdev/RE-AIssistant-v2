@@ -15,7 +15,8 @@ const LEVELS = [
 export default function LinePage() {
   const { userProfile } = useAuth();
   const [home, setHome] = useState(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
   const [areaCode, setAreaCode] = useState('');
 
   useEffect(() => {
@@ -24,11 +25,14 @@ export default function LinePage() {
 
   async function refresh() {
     setLoading(true);
+    setError('');
     try {
       const { data } = await httpsCallable(functions, 'getLineHome')();
       setHome(data);
-    } catch (error) {
-      toast.error(error.message || 'Could not load your line');
+    } catch (loadError) {
+      const message = loadError.message || 'Could not load your line';
+      setError(message);
+      toast.error(message);
     } finally {
       setLoading(false);
     }
@@ -96,12 +100,25 @@ export default function LinePage() {
       <PageHeader
         icon={Phone}
         title="Your line"
-        subtitle={userProfile?.fullName || 'Text this number. You approve what goes out.'}
+        subtitle={userProfile?.fullName || 'Your assistant number, guardrails, and texts waiting for a yes.'}
       />
 
-      {!loaded && (
-        <Button onClick={refresh} disabled={loading}>{loading ? 'Loading…' : 'Load line'}</Button>
-      )}
+      <Card>
+        <p className="text-sm text-slate-700">
+          This page loads the number texts are sent from, plus anything waiting for your approval. It calls the getLineHome function when you open it.
+        </p>
+        {loading && <p className="mt-2 text-sm text-slate-500">Loading your line…</p>}
+        {error && (
+          <p className="mt-2 text-sm text-amber-800">
+            {error} If Cloud Functions are off, enable Google Cloud billing (Blaze) and confirm getLineHome is deployed, then retry.
+          </p>
+        )}
+        {(error || !loaded) && !loading && (
+          <div className="mt-3">
+            <Button onClick={refresh}>Retry</Button>
+          </div>
+        )}
+      </Card>
 
       {loaded && (
         <>

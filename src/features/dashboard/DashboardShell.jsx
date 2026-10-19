@@ -37,9 +37,9 @@ const TOOL_SECTIONS = [
         icon: DoorOpen,
       },
       {
-        to: '/listings/new',
-        title: 'Create Listing',
-        description: 'Spin up a public listing hub for offer submissions.',
+        to: '/listings',
+        title: 'Listings',
+        description: 'See listing hubs you have created, or add a new one.',
         icon: FileText,
       },
       {
@@ -132,9 +132,7 @@ export default function DashboardShell() {
   const teamDash = useTeamDashboardData(view === 'team' ? teamId : null);
   const active = view === 'team' && teamId ? teamDash : personal;
   const { data, loading, indexPending } = active;
-  const subscription = userProfile?.subscription;
-  const planName = subscription?.planName || subscription?.plan || 'trial';
-  const status = subscription?.status;
+  const planName = trial.pending ? 'Checking plan…' : trial.label;
   const firstName =
     userProfile?.fullName?.split(' ')[0] ||
     currentUser?.displayName?.split(' ')[0] ||
@@ -149,10 +147,9 @@ export default function DashboardShell() {
         title={`Welcome back, ${firstName}`}
         subtitle="Your workspace for offers, open houses, and tours."
         actions={
-          <Badge tone={status === 'active' || status === 'trialing' ? 'success' : 'neutral'}>
+          <Badge tone={trial.paid ? 'success' : 'neutral'}>
             <Sparkles className="w-3 h-3" />
             {planName}
-            {status ? ` · ${status}` : ''}
           </Badge>
         }
       />
@@ -244,7 +241,7 @@ export default function DashboardShell() {
             <StatTile
               to="/buyer/schedule"
               icon={CalendarClock}
-              value={metrics.toursThisMonth}
+              value={metrics.toursScheduled}
               label="Tours scheduled"
               subline={`${metrics.pendingTargets} pending showings · ${metrics.confirmedTargets} confirmed showings`}
               tone="warning"
