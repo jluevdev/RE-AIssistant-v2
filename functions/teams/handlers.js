@@ -47,7 +47,7 @@ exports.createTeam = onCall(async (request) => {
       createdAt: now,
       updatedAt: now,
       memberCount: 1,
-      seats: { purchased: 1, used: 1 },
+      seats: { purchased: 5, used: 1 },
       billing: {
         plan: null,
         status: null,
@@ -80,185 +80,209 @@ exports.createTeam = onCall(async (request) => {
   return { success: true, teamId: teamRef.id, name: teamName };
 });
 
-exports.inviteMember = onCall({ secrets: ['FRONTEND_URL'] }, async (request) => {
-  if (!request.auth) throw new HttpsError('unauthenticated', 'Must be authenticated');
-
-  const uid = request.auth.uid;
-  const { email, role = 'agent' } = request.data || {};
-  const inviteEmail = normalizeEmail(email);
-  if (!inviteEmail) throw new HttpsError('invalid-argument', 'Email is required');
-  assertRole(role);
-
-  const user = await getUserDoc(uid);
-  if (!user.teamId) throw new HttpsError('failed-precondition', 'You are not on a team');
-  await requireTeamRole(uid, user.teamId, ['owner', 'admin']);
-
-  const team = await getTeam(user.teamId);
-  const seatsUsed = team.seats?.used ?? team.memberCount ?? 0;
-  const seatsPurchased = team.seats?.purchased ?? 1;
-
-  const pendingSnap = await db.collection('teamInvites')
-    .where('teamId', '==', user.teamId)
-    .where('email', '==', inviteEmail)
-    .where('status', '==', 'pending')
-    .limit(1)
-    .get();
-
-  if (!pendingSnap.empty) {
-    const existing = pendingSnap.docs[0];
-    const data = existing.data();
-    const frontendUrl = getFrontendUrl().replace(/\/$/, '');
-    return {
-      success: true,
-      inviteId: existing.id,
-      inviteUrl: `${frontendUrl}/join/${data.token}`,
-      alreadyPending: true,
-    };
-  }
-
-  if (seatsUsed >= seatsPurchased) {
-    throw new HttpsError(
-      'resource-exhausted',
-      'No seats available. Add seats in billing before inviting more members.'
-    );
-  }
-
-  const token = generateToken();
-  const inviteRef = db.collection('teamInvites').doc();
-  const now = FieldValue.serverTimestamp();
-  const inviterName = user.fullName || request.auth.token.email || 'Your team admin';
-
-  await inviteRef.set({
-    teamId: user.teamId,
-    teamName: team.name,
-    email: inviteEmail,
-    role,
-    status: 'pending',
-    token,
-    invitedByUid: uid,
-    invitedByName: inviterName,
-    createdAt: now,
-    expiresAt: inviteExpiryDate(),
-  });
-
-  const frontendUrl = getFrontendUrl().replace(/\/$/, '');
-  const inviteUrl = `${frontendUrl}/join/${token}`;
-
+exports.inviteMember = onCall(async (request) => {
   try {
-    await sendEmail({
-      to: inviteEmail,
-      subject: `Join ${team.name} on RE AIssistant`,
-      text: `${inviterName} invited you to join ${team.name} on RE AIssistant.\n\nAccept your invite: ${inviteUrl}\n\nThis link expires in 7 days.`,
-    });
-  } catch (emailError) {
-    console.warn('inviteMember email not sent:', emailError.message);
-  }
+    if (!request.auth) throw new HttpsError('unauthenticated', 'Must be authenticated');
 
-  return { success: true, inviteId: inviteRef.id, inviteUrl };
+    const uid = request.auth.uid;
+    const { email, role = 'agent' } = request.data || {};
+    const inviteEmail = normalizeEmail(email);
+    if (!inviteEmail) throw new HttpsError('invalid-argument', 'Email is required');
+    assertRole(role);
+
+    const user = await getUserDoc(uid);
+    if (!user.teamId) throw new HttpsError('failed-precondition', 'You are not on a team');
+    await requireTeamRole(uid, user.teamId, ['owner', 'admin']);
+
+    const team = await getTeam(user.teamId);
+    const seatsUsed = team.seats?.used ?? team.memberCount ?? 0;
+    const seatsPurchased = team.seats?.purchased ?? 1;
+
+    // Use email+status index (defined in firestore.indexes.json), then filter by teamId.
+    const pendingSnap = await db.collection('teamInvites')
+      .where('email', '==', inviteEmail)
+      .where('status', '==', 'pending')
+      .limit(10)
+      .get();
+
+    const existingPending = pendingSnap.docs.find((docSnap) => docSnap.data().teamId === user.teamId);
+    if (existingPending) {
+      const data = existingPending.data();
+      const frontendUrl = getFrontendUrl().replace(/\/$/, '');
+      return {
+        success: true,
+        inviteId: existingPending.id,
+        inviteUrl: `${frontendUrl}/join/${data.token}`,
+        alreadyPending: true,
+      };
+    }
+
+    if (seatsUsed >= seatsPurchased) {
+      throw new HttpsError(
+        'resource-exhausted',
+        'No seats available. Add seats in billing before inviting more members.'
+      );
+    }
+
+    const token = generateToken();
+    const inviteRef = db.collection('teamInvites').doc();
+    const now = FieldValue.serverTimestamp();
+    const inviterName = user.fullName || request.auth.token.email || 'Your team admin';
+
+    await inviteRef.set({
+      teamId: user.teamId,
+      teamName: team.name,
+      email: inviteEmail,
+      role,
+      status: 'pending',
+      token,
+      invitedByUid: uid,
+      invitedByName: inviterName,
+      createdAt: now,
+      expiresAt: inviteExpiryDate(),
+    });
+
+    const frontendUrl = getFrontendUrl().replace(/\/$/, '');
+    const inviteUrl = `${frontendUrl}/join/${token}`;
+
+    try {
+      await sendEmail({
+        to: inviteEmail,
+        subject: `Join ${team.name} on RE AIssistant`,
+        text: `${inviterName} invited you to join ${team.name} on RE AIssistant.\n\nAccept your invite: ${inviteUrl}\n\nThis link expires in 7 days.`,
+      });
+    } catch (emailError) {
+      console.warn('inviteMember email not sent:', emailError.message);
+    }
+
+    return { success: true, inviteId: inviteRef.id, inviteUrl };
+  } catch (error) {
+    console.error('inviteMember error:', error);
+    if (error instanceof HttpsError) throw error;
+    const message = String(error.message || '');
+    if (message.includes('index') || message.includes('FAILED_PRECONDITION')) {
+      throw new HttpsError(
+        'failed-precondition',
+        'Team invites are still setting up. Try again in a minute or copy the invite link manually.',
+      );
+    }
+    throw new HttpsError('internal', error.message || 'Failed to create invite');
+  }
 });
 
 exports.acceptInvite = onCall(async (request) => {
-  if (!request.auth) throw new HttpsError('unauthenticated', 'Must be authenticated');
+  try {
+    if (!request.auth) throw new HttpsError('unauthenticated', 'Must be authenticated');
 
-  const uid = request.auth.uid;
-  const { token } = request.data || {};
-  if (!token) throw new HttpsError('invalid-argument', 'Invite token is required');
+    const uid = request.auth.uid;
+    const { token } = request.data || {};
+    if (!token) throw new HttpsError('invalid-argument', 'Invite token is required');
 
-  const user = await getUserDoc(uid);
-  if (user.teamId) {
-    throw new HttpsError('failed-precondition', 'You are already on a team');
-  }
-
-  const inviteSnap = await db.collection('teamInvites')
-    .where('token', '==', String(token))
-    .limit(1)
-    .get();
-
-  if (inviteSnap.empty) throw new HttpsError('not-found', 'Invite not found');
-
-  const inviteDoc = inviteSnap.docs[0];
-  const invite = inviteDoc.data();
-
-  if (invite.status === 'accepted') {
-    if (user.teamId === invite.teamId) {
-      return { success: true, teamId: invite.teamId, teamName: invite.teamName, alreadyMember: true };
-    }
-    throw new HttpsError('failed-precondition', 'This invite was already used');
-  }
-
-  if (invite.status !== 'pending') {
-    throw new HttpsError('failed-precondition', 'This invite is no longer valid');
-  }
-
-  if (isInviteExpired(invite)) {
-    await inviteDoc.ref.set({ status: 'expired', updatedAt: FieldValue.serverTimestamp() }, { merge: true });
-    throw new HttpsError('deadline-exceeded', 'This invite has expired');
-  }
-
-  const userEmail = normalizeEmail(request.auth.token.email);
-  if (invite.email && userEmail && invite.email !== userEmail) {
-    throw new HttpsError(
-      'permission-denied',
-      'This invite was sent to a different email address. Sign in with the invited email.'
-    );
-  }
-
-  const teamRef = db.collection('teams').doc(invite.teamId);
-  const now = FieldValue.serverTimestamp();
-  const displayName = user.fullName || request.auth.token.name || userEmail || 'Agent';
-
-  await db.runTransaction(async (tx) => {
-    const teamSnap = await tx.get(teamRef);
-    if (!teamSnap.exists) throw new HttpsError('not-found', 'Team not found');
-
-    const teamData = teamSnap.data();
-    const seatsUsed = teamData.seats?.used ?? teamData.memberCount ?? 0;
-    const seatsPurchased = teamData.seats?.purchased ?? 1;
-    if (seatsUsed >= seatsPurchased) {
-      throw new HttpsError('resource-exhausted', 'Team has no available seats');
+    const user = await getUserDoc(uid);
+    if (user.teamId) {
+      throw new HttpsError('failed-precondition', 'You are already on a team');
     }
 
-    const memberRef = teamRef.collection('members').doc(uid);
-    const memberSnap = await tx.get(memberRef);
-    if (memberSnap.exists && memberSnap.data().status === 'active') {
-      return;
+    const inviteSnap = await db.collection('teamInvites')
+      .where('token', '==', String(token))
+      .limit(1)
+      .get();
+
+    if (inviteSnap.empty) throw new HttpsError('not-found', 'Invite not found');
+
+    const inviteDoc = inviteSnap.docs[0];
+    const invite = inviteDoc.data();
+
+    if (invite.status === 'accepted') {
+      if (user.teamId === invite.teamId) {
+        return { success: true, teamId: invite.teamId, teamName: invite.teamName, alreadyMember: true };
+      }
+      throw new HttpsError('failed-precondition', 'This invite was already used');
     }
 
-    tx.set(memberRef, {
-      uid,
-      email: userEmail,
-      displayName,
-      role: invite.role || 'agent',
-      status: 'active',
-      joinedAt: now,
+    if (invite.status !== 'pending') {
+      throw new HttpsError('failed-precondition', 'This invite is no longer valid');
+    }
+
+    if (isInviteExpired(invite)) {
+      await inviteDoc.ref.set({ status: 'expired', updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+      throw new HttpsError('deadline-exceeded', 'This invite has expired');
+    }
+
+    const userEmail = normalizeEmail(request.auth.token.email);
+    if (invite.email && userEmail && invite.email !== userEmail) {
+      throw new HttpsError(
+        'permission-denied',
+        'This invite was sent to a different email address. Sign in with the invited email.'
+      );
+    }
+
+    const teamRef = db.collection('teams').doc(invite.teamId);
+    const now = FieldValue.serverTimestamp();
+    const displayName = user.fullName || request.auth.token.name || userEmail || 'Agent';
+
+    await db.runTransaction(async (tx) => {
+      const teamSnap = await tx.get(teamRef);
+      if (!teamSnap.exists) throw new Error('TEAM_NOT_FOUND');
+
+      const teamData = teamSnap.data();
+      const seatsUsed = teamData.seats?.used ?? teamData.memberCount ?? 0;
+      const seatsPurchased = teamData.seats?.purchased ?? 1;
+      if (seatsUsed >= seatsPurchased) throw new Error('NO_SEATS');
+
+      const memberRef = teamRef.collection('members').doc(uid);
+      const memberSnap = await tx.get(memberRef);
+      if (memberSnap.exists && memberSnap.data().status === 'active') {
+        return;
+      }
+
+      tx.set(memberRef, {
+        uid,
+        email: userEmail,
+        displayName,
+        role: invite.role || 'agent',
+        status: 'active',
+        joinedAt: now,
+      });
+
+      tx.set(db.collection('users').doc(uid), {
+        teamId: invite.teamId,
+        teamRole: invite.role || 'agent',
+        updatedAt: now,
+      }, { merge: true });
+
+      tx.set(teamRef, {
+        memberCount: FieldValue.increment(1),
+        seats: { purchased: seatsPurchased, used: seatsUsed + 1 },
+        updatedAt: now,
+      }, { merge: true });
+
+      tx.set(inviteDoc.ref, {
+        status: 'accepted',
+        acceptedByUid: uid,
+        acceptedAt: now,
+        updatedAt: now,
+      }, { merge: true });
     });
 
-    tx.set(db.collection('users').doc(uid), {
+    return {
+      success: true,
       teamId: invite.teamId,
+      teamName: invite.teamName,
       teamRole: invite.role || 'agent',
-      updatedAt: now,
-    }, { merge: true });
-
-    tx.set(teamRef, {
-      memberCount: FieldValue.increment(1),
-      seats: { purchased: seatsPurchased, used: seatsUsed + 1 },
-      updatedAt: now,
-    }, { merge: true });
-
-    tx.set(inviteDoc.ref, {
-      status: 'accepted',
-      acceptedByUid: uid,
-      acceptedAt: now,
-      updatedAt: now,
-    }, { merge: true });
-  });
-
-  return {
-    success: true,
-    teamId: invite.teamId,
-    teamName: invite.teamName,
-    teamRole: invite.role || 'agent',
-  };
+    };
+  } catch (error) {
+    console.error('acceptInvite error:', error);
+    if (error instanceof HttpsError) throw error;
+    const message = String(error.message || '');
+    if (message === 'TEAM_NOT_FOUND') {
+      throw new HttpsError('not-found', 'Team not found');
+    }
+    if (message === 'NO_SEATS') {
+      throw new HttpsError('resource-exhausted', 'Team has no available seats');
+    }
+    throw new HttpsError('internal', error.message || 'Failed to accept invite');
+  }
 });
 
 exports.revokeInvite = onCall(async (request) => {
@@ -407,49 +431,41 @@ exports.leaveTeam = onCall(async (request) => {
 });
 
 exports.createTeamCheckoutSession = onCall(
-  { secrets: ['STRIPE_SECRET_KEY', 'STRIPE_PRICE_PREMIUM_TEAM', 'FRONTEND_URL'] },
+  { cors: true, secrets: ['STRIPE_SECRET_KEY', 'STRIPE_PRICE_PREMIUM_TEAM', 'FRONTEND_URL'] },
   async (request) => {
-    if (!request.auth) throw new HttpsError('unauthenticated', 'Must be authenticated');
+    try {
+      if (!request.auth) throw new HttpsError('unauthenticated', 'Must be authenticated');
 
-    const uid = request.auth.uid;
-    const { seats: rawSeats, teamId } = request.data || {};
-    const seats = Math.max(1, Math.min(100, Number(rawSeats) || 1));
+      const uid = request.auth.uid;
+      const { seats: rawSeats, teamId } = request.data || {};
+      const seats = Math.max(1, Math.min(100, Number(rawSeats) || 1));
 
-    const user = await getUserDoc(uid);
-    const resolvedTeamId = teamId || user.teamId;
-    if (!resolvedTeamId) throw new HttpsError('failed-precondition', 'Team id required');
-    await requireTeamRole(uid, resolvedTeamId, ['owner']);
+      const user = await getUserDoc(uid);
+      const resolvedTeamId = teamId || user.teamId;
+      if (!resolvedTeamId) throw new HttpsError('failed-precondition', 'Team id required');
+      await requireTeamRole(uid, resolvedTeamId, ['owner']);
 
-    const team = await getTeam(resolvedTeamId);
-    const priceId = process.env.STRIPE_PRICE_PREMIUM_TEAM;
-    if (!priceId) {
-      throw new HttpsError('failed-precondition', 'Team billing is not configured (STRIPE_PRICE_PREMIUM_TEAM)');
-    }
+      const team = await getTeam(resolvedTeamId);
+      const priceId = process.env.STRIPE_PRICE_PREMIUM_TEAM;
+      if (!priceId) {
+        throw new HttpsError('failed-precondition', 'Team billing is not configured (STRIPE_PRICE_PREMIUM_TEAM)');
+      }
 
-    const userEmail = request.auth.token.email;
-    if (!userEmail) throw new HttpsError('failed-precondition', 'Signed-in user must have an email');
+      const userEmail = request.auth.token.email;
+      if (!userEmail) throw new HttpsError('failed-precondition', 'Signed-in user must have an email');
 
-    const { getStripe } = require('../billing/stripe');
-    const stripe = getStripe();
-    const frontendUrl = getFrontendUrl();
+      const { getStripe } = require('../billing/stripe');
+      const stripe = getStripe();
+      const frontendUrl = getFrontendUrl();
 
-    const session = await stripe.checkout.sessions.create({
-      payment_method_types: ['card'],
-      line_items: [{ price: priceId, quantity: seats }],
-      mode: 'subscription',
-      success_url: `${frontendUrl}/team?checkout=success`,
-      cancel_url: `${frontendUrl}/team`,
-      customer_email: userEmail,
-      client_reference_id: uid,
-      metadata: {
-        userId: uid,
-        teamId: resolvedTeamId,
-        kind: 'team',
-        seats: String(seats),
-        planName: 'Premium Team',
-        planKey: 'premiumTeam',
-      },
-      subscription_data: {
+      const session = await stripe.checkout.sessions.create({
+        payment_method_types: ['card'],
+        line_items: [{ price: priceId, quantity: seats }],
+        mode: 'subscription',
+        success_url: `${frontendUrl}/team?checkout=success`,
+        cancel_url: `${frontendUrl}/team`,
+        customer_email: userEmail,
+        client_reference_id: uid,
         metadata: {
           userId: uid,
           teamId: resolvedTeamId,
@@ -458,10 +474,31 @@ exports.createTeamCheckoutSession = onCall(
           planName: 'Premium Team',
           planKey: 'premiumTeam',
         },
-        trial_period_days: 7,
-      },
-    });
+        subscription_data: {
+          metadata: {
+            userId: uid,
+            teamId: resolvedTeamId,
+            kind: 'team',
+            seats: String(seats),
+            planName: 'Premium Team',
+            planKey: 'premiumTeam',
+          },
+          trial_period_days: 7,
+        },
+      });
 
-    return { success: true, url: session.url, sessionId: session.id };
+      return { success: true, url: session.url, sessionId: session.id, teamName: team.name };
+    } catch (error) {
+      console.error('createTeamCheckoutSession error:', error);
+      if (error instanceof HttpsError) throw error;
+      const message = String(error.message || '');
+      if (message.includes('billing is disabled')) {
+        throw new HttpsError(
+          'failed-precondition',
+          'Google Cloud billing is disabled on this Firebase project, so Stripe checkout cannot start. Re-enable billing in Google Cloud Console, or ask an admin to grant trial seats.',
+        );
+      }
+      throw new HttpsError('internal', error.message || 'Failed to create team checkout session');
+    }
   }
 );

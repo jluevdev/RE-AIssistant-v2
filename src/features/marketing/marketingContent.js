@@ -4,9 +4,9 @@ export const hero = {
   headline: 'Close more deals with less busywork',
   subhead:
     'RE AIssistant keeps your inbox, open houses, offers, and follow-ups in one place — so you spend time with clients, not spreadsheets.',
-  primaryCta: 'Start $10 trial',
+  primaryCta: 'Start free trial',
   secondaryCta: 'See pricing',
-  trialNote: 'One-day trial for $10 · Cancel anytime',
+  trialNote: 'Free 7-day trial · No card required · Cancel anytime',
 };
 
 export const socialProof = [
@@ -76,7 +76,7 @@ export const pricingIntro = {
   title: 'Simple, transparent pricing',
   subtitle:
     'Choose the plan that fits your business. All plans include unlimited texting, scheduling, and client collaboration.',
-  trialCallout: 'Every plan includes a $10 one-day trial so you can test with real workflows.',
+  trialCallout: 'Every plan includes a free 7-day trial so you can test with real workflows. No card required.',
 };
 
 export const planFeatures = {
@@ -86,7 +86,7 @@ export const planFeatures = {
     'Unlimited texting & scheduling',
     'Magic-link client access',
     'Basic analytics & reporting',
-    '$10 one-day trial',
+    'Free 7-day trial',
     'Email support',
   ],
   allInclusive: [
@@ -96,7 +96,7 @@ export const planFeatures = {
     'Unlimited property listings',
     'Advanced client management',
     'Commission tracking',
-    '$10 one-day trial',
+    'Free 7-day trial',
   ],
   premiumTeam: [
     '5+ agent seats included',
@@ -110,16 +110,15 @@ export const planFeatures = {
 };
 
 export const planCtas = {
-  singleAgent: { label: 'Start $10 trial', to: '/signup' },
-  allInclusive: { label: 'Start $10 trial', to: '/signup' },
-  premiumTeam: { label: 'Contact sales', href: 'mailto:support@reaiassistant.com?subject=Premium%20Team%20plan' },
+  singleAgent: { label: 'Start free trial', to: '/signup' },
+  allInclusive: { label: 'Start free trial', to: '/signup' },
 };
 
 export const faq = [
   {
-    question: 'What is included in the $10 trial?',
+    question: 'What is included in the free trial?',
     answer:
-      'You get full access to your chosen plan for one day. Explore messaging, open houses, and automations with real data before committing to a monthly subscription.',
+      'You get full access for 7 days with no card required. Explore messaging, open houses, and automations with real data, then add billing info if you want to continue.',
   },
   {
     question: 'Can I switch plans later?',
@@ -151,7 +150,7 @@ export const faq = [
 export const ctaSection = {
   title: 'Ready to win back your time?',
   subtitle: 'Join agents who run their pipeline from one intelligent workspace.',
-  primaryCta: 'Start $10 trial',
+  primaryCta: 'Start free trial',
   secondaryCta: 'View pricing',
 };
 

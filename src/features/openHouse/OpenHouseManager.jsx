@@ -36,9 +36,12 @@ import SkeletonLoader from '../../components/SkeletonLoader'
 import OpenHouseAnalytics from './OpenHouseAnalytics'
 import AutomatedFollowUp from './AutomatedFollowUpStub'
 import { QRCodeSVG } from 'qrcode.react'
+import useTrialStatus, { blockTrialAction } from '../billing/useTrialStatus'
+import TrialBanner from '../billing/TrialBanner'
 
 export default function OpenHouseManager() {
   const { currentUser, userProfile } = useAuth()
+  const trial = useTrialStatus()
   const [openHouses, setOpenHouses] = useState([])
   const [loading, setLoading] = useState(true)
   const [showCreateModal, setShowCreateModal] = useState(false)
@@ -217,6 +220,9 @@ export default function OpenHouseManager() {
 
   const handleCreateOpenHouse = async () => {
     try {
+      if (blockTrialAction(trial, 'Your free trial has ended. Add billing info to create an open house.')) {
+        return
+      }
       if (!newOpenHouse.title || !newOpenHouse.address || !newOpenHouse.date) {
         toast.error('Please fill in all required fields')
         return
@@ -487,12 +493,17 @@ export default function OpenHouseManager() {
           backTo="/dashboard"
           backLabel="Dashboard"
           actions={
-            <Button onClick={() => setShowCreateModal(true)}>
+            <Button onClick={() => {
+              if (blockTrialAction(trial, 'Your free trial has ended. Add billing info to create an open house.')) return
+              setShowCreateModal(true)
+            }}>
               <Plus className="w-4 h-4" />
               Create Open House
             </Button>
           }
         />
+
+        <TrialBanner trial={trial} />
 
         {/* Tab Navigation */}
         <div className="border-b border-gray-200">

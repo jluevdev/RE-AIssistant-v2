@@ -99,6 +99,12 @@ export function computeDashboardMetrics(
     const confirmed = (schedule.targets || []).filter((t) => t?.status === 'confirmed').length;
     return sum + confirmed;
   }, 0);
+  const pendingTargets = schedules.reduce((sum, schedule) => {
+    const pending = (schedule.targets || []).filter((t) => (
+      (t?.address || t?.sourceUrl) && t?.status !== 'confirmed' && t?.status !== 'declined'
+    )).length;
+    return sum + pending;
+  }, 0);
 
   const responseRate = computeResponseRate(messages, referenceDate);
 
@@ -113,6 +119,7 @@ export function computeDashboardMetrics(
     offerPipelineUsd,
     toursThisMonth,
     confirmedTargets,
+    pendingTargets,
     responseRate,
     openHousesThisMonth,
     contactsThisMonth,

@@ -10,6 +10,9 @@ const ai = require('./ai');
 const automations = require('./automations');
 const teams = require('./teams');
 const account = require('./account');
+const growth = require('./growth');
+const line = require('./line/handlers');
+const esign = require('./esign/handlers');
 
 module.exports = {
   ...health,
@@ -22,4 +25,7 @@ module.exports = {
   ...automations,
   ...teams,
   ...account,
+  ...growth,
+  ...line,
+  ...esign,
 };

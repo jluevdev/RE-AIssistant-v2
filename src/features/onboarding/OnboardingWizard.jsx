@@ -11,7 +11,7 @@ const TOUR_STEPS = STEP_ORDER.map((id) => STEP_META[id]);
 
 export default function OnboardingWizard() {
   const { currentUser, userProfile, updateUserProfile } = useAuth();
-  const { wizardForced, clearForcedWizard } = useOnboardingUi();
+  const { wizardForced, clearForcedWizard, guide, setGuideStep, advanceNonce, stopBotGuide } = useOnboardingUi();
   const {
     showWizard,
     onboarding,
@@ -45,7 +45,7 @@ export default function OnboardingWizard() {
     // Only hydrate step/form when the wizard first opens — not on every profile write.
     if (!wasOpenRef.current) {
       wasOpenRef.current = true;
-      setStep(onboarding.wizardStep || 0);
+      setStep(guide ? 0 : (onboarding.wizardStep || 0));
       setProfileForm({
         fullName: userProfile?.fullName || currentUser?.displayName || '',
         phone: userProfile?.phone || '',
@@ -53,13 +53,26 @@ export default function OnboardingWizard() {
         timezone: userProfile?.timezone || 'America/Los_Angeles',
       });
     }
-  }, [wizardForced, showWizard, onboarding.wizardStep, userProfile, currentUser]);
+  }, [wizardForced, showWizard, onboarding.wizardStep, userProfile, currentUser, guide, setGuideStep]);
+
+  useEffect(() => {
+    if (guide) setGuideStep(step);
+  }, [guide, step, setGuideStep]);
+
+  const advanceSeen = useRef(0);
+  const advanceRef = useRef(() => {});
+  useEffect(() => {
+    if (!advanceNonce || advanceNonce === advanceSeen.current) return;
+    advanceSeen.current = advanceNonce;
+    advanceRef.current();
+  }, [advanceNonce]);
 
   if (!currentUser) return null;
 
   async function handleSkip() {
     try {
       await dismissWizard();
+      stopBotGuide();
       setOpen(false);
       wasOpenRef.current = false;
       clearForcedWizard();
@@ -98,6 +111,7 @@ export default function OnboardingWizard() {
     if (next >= 4) {
       try {
         await finishWizard();
+        stopBotGuide();
         setOpen(false);
         wasOpenRef.current = false;
         clearForcedWizard();
@@ -118,6 +132,8 @@ export default function OnboardingWizard() {
     saveWizardStep(prev).catch(() => {});
   }
 
+  advanceRef.current = handleNext;
+
   return (
     <Modal
       open={open}
@@ -126,6 +142,11 @@ export default function OnboardingWizard() {
       size="lg"
     >
       <div className="space-y-5">
+        {guide?.name && (
+          <p className="rounded-lg bg-brand-50 px-3 py-2 text-sm text-brand-800">
+            {guide.name} is walking you through this step. Use Next on {guide.name}, or Continue here.
+          </p>
+        )}
         {step === 0 && (
           <>
             <p className="text-sm text-slate-600">

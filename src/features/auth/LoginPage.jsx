@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { useAuth } from '../../contexts/AuthContext';
+import Logo from '../../components/layout/Logo';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -72,6 +73,7 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen flex items-center justify-center px-4">
       <div className="w-full max-w-md bg-white rounded-xl shadow-sm border border-slate-200 p-8">
+        <Logo variant="lockup" className="mb-6" />
         <h1 className="text-2xl font-bold mb-2">Sign in</h1>
         <p className="text-sm text-slate-600 mb-6">Email/password or Google</p>
 

@@ -80,15 +80,34 @@ export default function BillingPage() {
             <Card key={plan.key} className="flex items-center justify-between gap-4">
               <div>
                 <h2 className="font-semibold text-slate-900">{plan.name}</h2>
-                <p className="text-sm text-slate-600">${plan.price}/month</p>
+                <p className="text-sm text-slate-600">
+                  {plan.priceLabel && plan.promo ? plan.promo.price : plan.priceLabel || `$${plan.price}/month`}
+                </p>
+                {plan.promo && (
+                  <p className="mt-1 text-xs text-slate-500">{plan.promo.note}</p>
+                )}
               </div>
-              <Button
-                loading={loadingPlan === plan.key}
-                disabled={loadingPlan === plan.key}
-                onClick={() => startCheckout(plan)}
-              >
-                {loadingPlan === plan.key ? 'Redirecting…' : 'Upgrade'}
-              </Button>
+              <div className="flex shrink-0 flex-col items-stretch gap-2">
+                {!plan.priceLabel && (
+                  <Button
+                    loading={loadingPlan === plan.key}
+                    disabled={Boolean(loadingPlan)}
+                    onClick={() => startCheckout(plan)}
+                  >
+                    {loadingPlan === plan.key ? 'Redirecting…' : 'Upgrade'}
+                  </Button>
+                )}
+                {plan.yearly?.id && (
+                  <Button
+                    variant="outline"
+                    loading={loadingPlan === plan.yearly.key}
+                    disabled={Boolean(loadingPlan)}
+                    onClick={() => startCheckout(plan.yearly)}
+                  >
+                    {loadingPlan === plan.yearly.key ? 'Redirecting…' : plan.yearly.priceLabel}
+                  </Button>
+                )}
+              </div>
             </Card>
           ))}
         </div>

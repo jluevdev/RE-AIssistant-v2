@@ -1,5 +1,4 @@
 const { onCall, HttpsError } = require('firebase-functions/v2/https');
-const { GoogleGenerativeAI } = require('@google/generative-ai');
 const {
   ALLOWED_ROUTES,
   OFF_TOPIC_REPLY,
@@ -7,9 +6,9 @@ const {
   sanitizeLinks,
   buildKnowledgeContext,
 } = require('./helpKnowledge');
+const { vertexGenerateContent, extractText } = require('../shared/gemini');
 
 const MAX_QUESTION_LENGTH = 500;
-const MODEL = 'gemini-2.0-flash';
 
 function parseJsonResponse(text) {
   const trimmed = String(text || '').trim();
@@ -23,9 +22,6 @@ function parseJsonResponse(text) {
 }
 
 async function askGemini(question) {
-  const apiKey = process.env.GOOGLEAI_KEY;
-  if (!apiKey) return null;
-
   const allowedList = ALLOWED_ROUTES.map((r) => `${r.label}: ${r.to}`).join('\n');
   const knowledge = buildKnowledgeContext();
 
@@ -41,23 +37,17 @@ ${allowedList}
 App knowledge:
 ${knowledge}`;
 
-  const genAI = new GoogleGenerativeAI(apiKey);
-  const model = genAI.getGenerativeModel({
-    model: MODEL,
+  const payload = await vertexGenerateContent({
     systemInstruction: system,
-  });
-
-  const result = await model.generateContent({
     contents: [{ role: 'user', parts: [{ text: question }] }],
     generationConfig: {
       temperature: 0.2,
-      maxOutputTokens: 256,
+      maxOutputTokens: 512,
       responseMimeType: 'application/json',
     },
   });
 
-  const text = result.response?.text?.();
-  const parsed = parseJsonResponse(text);
+  const parsed = parseJsonResponse(extractText(payload));
   if (!parsed?.answer) return null;
 
   const links = sanitizeLinks(parsed.links);
@@ -79,7 +69,7 @@ ${knowledge}`;
 }
 
 exports.askHelpBot = onCall(
-  { secrets: ['GOOGLEAI_KEY'] },
+  { cors: true },
   async (request) => {
     if (!request.auth) {
       throw new HttpsError('unauthenticated', 'Must be signed in to use help');

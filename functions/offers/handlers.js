@@ -268,7 +268,7 @@ exports.submitOfferFinalize = onCall(async (request) => {
       if (offer.agentEmail && process.env.SENDGRID_API_KEY) {
         sendgrid.setApiKey(process.env.SENDGRID_API_KEY);
         const fromEmail = process.env.SEND_FROM_EMAIL || 'no-reply@reaissistant.com';
-        const frontendUrl = process.env.FRONTEND_URL || 'https://reaiassistant-27241.web.app';
+        const frontendUrl = process.env.FRONTEND_URL || 'https://reaiassistant.com';
         await sendgrid.send({
           to: offer.agentEmail,
           from: { email: fromEmail, name: 'RE AIssistant' },
@@ -287,4 +287,40 @@ exports.submitOfferFinalize = onCall(async (request) => {
     if (error instanceof HttpsError) throw error;
     throw new HttpsError('internal', 'Failed to finalize offer');
   }
+});
+
+const FILE_DEADLINES = ['inspection', 'appraisal', 'loan', 'contingencyRemoval', 'close'];
+const FILE_CHECKS = ['preApproval', 'proofOfFunds', 'signedPacket', 'inspectionBooked', 'appraisalOrdered'];
+
+exports.updateOfferFile = onCall(async (request) => {
+  if (!request.auth) throw new HttpsError('unauthenticated', 'Must be authenticated');
+  const { offerId, deadlines, checklist } = request.data || {};
+  if (!offerId) throw new HttpsError('invalid-argument', 'offerId required');
+  const ref = admin.firestore().collection('offers').doc(offerId);
+  const snap = await ref.get();
+  if (!snap.exists) throw new HttpsError('not-found', 'Offer not found');
+  assertOwner(snap.data(), request.auth.uid);
+  const current = snap.data().file || { deadlines: {}, checklist: {} };
+  const nextDeadlines = { ...(current.deadlines || {}) };
+  const nextChecks = { ...(current.checklist || {}) };
+  if (deadlines && typeof deadlines === 'object') {
+    FILE_DEADLINES.forEach((key) => {
+      if (!(key in deadlines)) return;
+      const value = String(deadlines[key] || '').trim();
+      if (value && !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+        throw new HttpsError('invalid-argument', 'Dates use YYYY-MM-DD.');
+      }
+      nextDeadlines[key] = value;
+    });
+  }
+  if (checklist && typeof checklist === 'object') {
+    FILE_CHECKS.forEach((key) => {
+      if (key in checklist) nextChecks[key] = Boolean(checklist[key]);
+    });
+  }
+  await ref.set({
+    file: { deadlines: nextDeadlines, checklist: nextChecks },
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+  }, { merge: true });
+  return { success: true, file: { deadlines: nextDeadlines, checklist: nextChecks } };
 });

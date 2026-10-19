@@ -16,9 +16,12 @@ import {
   getThreadMessages,
   normalizePhoneKey,
 } from './messageUtils';
+import useTrialStatus, { blockTrialAction } from '../billing/useTrialStatus';
+import TrialBanner from '../billing/TrialBanner';
 
 export default function MessagesInbox() {
   const { currentUser } = useAuth();
+  const trial = useTrialStatus();
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -121,6 +124,7 @@ export default function MessagesInbox() {
   }, [conversationMessages.length, selectedPhone]);
 
   const handleSend = async () => {
+    if (blockTrialAction(trial, 'Your free trial has ended. Add billing info to send texts.')) return;
     const text = replyText.trim();
     if (!text || !selectedPhone || sending) return;
 
@@ -176,6 +180,7 @@ export default function MessagesInbox() {
             for best performance.
           </p>
         )}
+        <TrialBanner trial={trial} className="mt-3" />
       </div>
 
       <div className="flex h-[calc(100dvh-10rem)] md:h-[calc(100dvh-12rem)] border-y md:border border-slate-200 md:rounded-xl md:mx-4 lg:mx-8 bg-white overflow-hidden shadow-sm">

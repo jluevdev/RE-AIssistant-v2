@@ -56,10 +56,9 @@ export const RULE_META = {
   },
   buyerTourFollowupSms: {
     title: 'Buyer tour follow-up SMS',
-    description: 'Coming soon — automatic follow-up after a buyer tour is created.',
+    description: 'Queued for your approval after a tour. It does not send on its own.',
     channel: 'sms',
     timing: 'delay',
-    comingSoon: true,
   },
 };
 

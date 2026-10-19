@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Menu, X } from 'lucide-react';
 import { Button } from '../../../components/ui';
+import Logo from '../../../components/layout/Logo';
 import { brand } from '../../../theme/tokens';
 
 const NAV_LINKS = [
@@ -37,11 +38,8 @@ export default function MarketingNav() {
   return (
     <header className="sticky top-0 z-50 border-b border-slate-200/80 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/80">
       <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3 sm:px-6">
-        <Link to="/" className="flex items-center gap-2 font-semibold text-brand-700">
-          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-600 text-sm font-bold text-white">
-            {brand.shortName}
-          </span>
-          <span className="hidden sm:inline">{brand.name}</span>
+        <Link to="/" className="flex items-center" aria-label={brand.name}>
+          <Logo />
         </Link>
 
         <nav className="hidden items-center gap-6 md:flex" aria-label="Main">
@@ -62,7 +60,7 @@ export default function MarketingNav() {
             Sign in
           </Button>
           <Button as={Link} to="/signup" size="sm">
-            Start $10 trial
+            Start free trial
           </Button>
         </div>
 
@@ -95,7 +93,7 @@ export default function MarketingNav() {
                 Sign in
               </Button>
               <Button as={Link} to="/signup" size="sm" onClick={() => setOpen(false)}>
-                Start $10 trial
+                Start free trial
               </Button>
             </div>
           </nav>

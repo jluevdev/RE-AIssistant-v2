@@ -7,6 +7,9 @@ const {
   getTwilioClient,
   getTwilioFromNumber,
 } = require('../shared/twilio');
+const { parsePropertyUrls, ingestListingUrls, publicListingStops, mergePublicListingPhotos, normalizeTourKind, normalizeListingKind, normalizeContactRole } = require('./listingLinks');
+const { assertSubscriptionActive } = require('../shared/subscription');
+const { planOutboundSms, commitOutboundSms } = require('../shared/smsRouting');
 
 const TOKEN_TTL_MS = 48 * 60 * 60 * 1000;
 const CONFIRM_WINDOW_MS = 72 * 60 * 60 * 1000;
@@ -15,7 +18,70 @@ const CONFIRM_RE = /\b(confirm(ed)?|yes|yep|yeah|ok(ay)?|works|available|sounds 
 const DECLINE_RE = /\b(no|decline(d)?|unavailable|can't|cannot|won't|not available|pass)\b/i;
 
 function getFrontendUrl() {
-  return (process.env.FRONTEND_URL || 'https://reaiassistant-v2.web.app').replace(/\/$/, '');
+  return (process.env.FRONTEND_URL || 'https://reaiassistant.com').replace(/\/$/, '');
+}
+
+const MAX_CLIENT_NOTE = 600;
+
+async function loadScheduleFromPlanToken(db, token) {
+  if (!token) {
+    throw new HttpsError('invalid-argument', 'token is required');
+  }
+  const tokenRef = db.collection('clientPlanTokens').doc(String(token));
+  const tokenSnap = await tokenRef.get();
+  if (!tokenSnap.exists) {
+    throw new HttpsError('not-found', 'This plan link is invalid or has expired');
+  }
+  const tokenData = tokenSnap.data();
+  const expiresAt = tokenData.expiresAt?.toDate?.();
+  if (!expiresAt || expiresAt <= new Date()) {
+    throw new HttpsError('failed-precondition', 'This plan link has expired');
+  }
+  if (!tokenData.scheduleId) {
+    throw new HttpsError('failed-precondition', 'This plan is not ready');
+  }
+  const scheduleRef = db.collection('buyerSchedules').doc(tokenData.scheduleId);
+  const scheduleSnap = await scheduleRef.get();
+  if (!scheduleSnap.exists) {
+    throw new HttpsError('not-found', 'Showing plan not found');
+  }
+  return { tokenRef, tokenData, expiresAt, scheduleRef, schedule: scheduleSnap.data() };
+}
+
+function ensureTargetIds(targets) {
+  let changed = false;
+  const next = (targets || []).map((target, index) => {
+    if (target?.id) return target;
+    changed = true;
+    return { ...target, id: randomUUID() || `target-${index + 1}` };
+  });
+  return { targets: next, changed };
+}
+
+function recomputeFavoriteRanks(targets, favoriteOrder) {
+  const confirmedInterested = targets.filter((target) => (
+    target.status === 'confirmed' && target.clientInterest !== 'passed'
+  ));
+  const allowed = new Set(confirmedInterested.map((target) => target.id));
+  let order = [];
+  if (Array.isArray(favoriteOrder) && favoriteOrder.length) {
+    order = favoriteOrder.map(String).filter((id) => allowed.has(id));
+    confirmedInterested.forEach((target) => {
+      if (!order.includes(target.id)) order.push(target.id);
+    });
+  } else {
+    order = confirmedInterested
+      .slice()
+      .sort((a, b) => (Number(a.clientRank) || 999) - (Number(b.clientRank) || 999))
+      .map((target) => target.id);
+  }
+  const rankById = new Map(order.map((id, index) => [id, index + 1]));
+  return targets.map((target) => {
+    if (target.status !== 'confirmed' || target.clientInterest === 'passed') {
+      return { ...target, clientRank: null };
+    }
+    return { ...target, clientRank: rankById.get(target.id) || null };
+  });
 }
 
 function getAgentDisplayName(authToken, profile) {
@@ -30,9 +96,20 @@ function getAgentDisplayName(authToken, profile) {
 function formatAvailabilityWindow(availability) {
   const { date, start, end } = availability || {};
   if (!date) return 'the requested time';
-  const startLabel = start || 'TBD';
-  const endLabel = end || 'TBD';
+  const startLabel = formatTime12(start) || 'TBD';
+  const endLabel = formatTime12(end) || 'TBD';
   return `${date} between ${startLabel} and ${endLabel}`;
+}
+
+function formatTime12(value) {
+  if (!value) return '';
+  const match = String(value).trim().match(/^(\d{1,2}):(\d{2})/);
+  if (!match) return String(value);
+  const minutes = match[2];
+  let hours = Number(match[1]);
+  const suffix = hours >= 12 ? 'PM' : 'AM';
+  hours = hours % 12 || 12;
+  return `${hours}:${minutes} ${suffix}`;
 }
 
 function normalizeBuyers(buyers) {
@@ -76,12 +153,28 @@ function normalizeTargets(targets) {
       id: target?.id || randomUUID(),
       address: String(target?.address || '').trim(),
       listingAgentPhone: String(target?.listingAgentPhone || '').trim(),
+      listingAgentName: String(target?.listingAgentName || '').trim(),
+      listingAgentEmail: String(target?.listingAgentEmail || '').trim().toLowerCase(),
+      brokerage: String(target?.brokerage || '').trim(),
+      dreNumber: String(target?.dreNumber || '').replace(/\D/g, ''),
+      mlsNumber: String(target?.mlsNumber || '').trim(),
+      listingKind: normalizeListingKind(target?.listingKind) || '',
+      contactRole: normalizeContactRole(target?.contactRole) || '',
+      photoUrl: String(target?.photoUrl || '').trim().slice(0, 2000),
+      sourceUrl: String(target?.sourceUrl || '').trim(),
+      price: String(target?.price || '').trim(),
+      parseStatus: target?.parseStatus || null,
+      phoneSource: target?.phoneSource === 'web_search' ? 'web_search' : '',
+      confidence: target?.confidence || null,
       note: String(target?.note || '').trim(),
       status: target?.status || 'pending',
       confirmedAt: target?.confirmedAt || null,
       lastInboundPreview: target?.lastInboundPreview || null,
+      clientNote: String(target?.clientNote || '').trim().slice(0, 600),
+      clientRank: Number.isFinite(Number(target?.clientRank)) ? Number(target.clientRank) : null,
+      clientInterest: target?.clientInterest === 'passed' ? 'passed' : 'interested',
     }))
-    .filter((target) => target.address || target.listingAgentPhone);
+    .filter((target) => target.address || target.listingAgentPhone || target.sourceUrl);
 }
 
 function buildMapsDirectionsUrl(stops) {
@@ -115,13 +208,6 @@ async function assertScheduleOwner(db, scheduleId, uid) {
     throw new HttpsError('permission-denied', 'Not allowed');
   }
   return { ref, schedule };
-}
-
-async function upsertSmsRouting(db, contactPhone, data) {
-  await db.collection('smsRouting').doc(contactPhone).set({
-    ...data,
-    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-  }, { merge: true });
 }
 
 async function loadInboundBySchedule(db, scheduleId, since) {
@@ -191,12 +277,28 @@ async function collateScheduleTargets(db, schedule) {
   return updatedTargets;
 }
 
-function buildShowingRequestMessage({ agentName, householdLabel, address, availability, note }) {
+function buildShowingRequestMessage({
+  agentName,
+  householdLabel,
+  address,
+  availability,
+  note,
+  tourKind,
+  contactName,
+}) {
   const windowLabel = formatAvailabilityWindow(availability);
   const noteSuffix = note ? ` Note: ${note}.` : '';
-  const forBuyers = householdLabel ? ` for ${householdLabel}` : '';
+  const forHousehold = householdLabel ? ` for ${householdLabel}` : '';
+  const firstName = String(contactName || '').trim().split(/\s+/)[0] || '';
+  if (normalizeTourKind(tourKind) === 'rental') {
+    const greeting = firstName ? `Hi ${firstName}, this is ${agentName}` : `Hi, this is ${agentName}`;
+    return (
+      `${greeting} via RE AIssistant. I'd like to schedule a rental showing for ${address} on ${windowLabel}${forHousehold}.${noteSuffix} ` +
+      'Please reply YES to confirm or NO if unavailable. Reply STOP to opt out.'
+    );
+  }
   return (
-    `Hi, this is ${agentName} via RE AIssistant. I'd like to schedule a showing for ${address} on ${windowLabel}${forBuyers}.${noteSuffix} ` +
+    `Hi, this is ${agentName} via RE AIssistant. I'd like to schedule a showing for ${address} on ${windowLabel}${forHousehold}.${noteSuffix} ` +
     'Please reply YES to confirm or NO if unavailable. Reply STOP to opt out.'
   );
 }
@@ -208,6 +310,7 @@ exports.sendBuyerShowingRequests = onCall(
       if (!request.auth) {
         throw new HttpsError('unauthenticated', 'Must be authenticated');
       }
+      await assertSubscriptionActive(request.auth.uid);
 
       const {
         scheduleId = null,
@@ -216,6 +319,7 @@ exports.sendBuyerShowingRequests = onCall(
         buyers = [],
         agentName: agentNameInput = null,
         buyerName = null,
+        tourKind: requestedTourKind = null,
       } = request.data || {};
 
       const db = admin.firestore();
@@ -246,6 +350,9 @@ exports.sendBuyerShowingRequests = onCall(
       const agentName = agentNameInput || getAgentDisplayName(request.auth.token, profile);
       const household = normalizeBuyers(Array.isArray(buyers) && buyers.length ? buyers : scheduleData.buyers);
       const householdLabel = formatHouseholdLabel(household, buyerName || '');
+      const tourKind = scheduleId
+        ? normalizeTourKind(scheduleData.tourKind || requestedTourKind)
+        : normalizeTourKind(requestedTourKind);
       const fromPhone = getTwilioFromNumber();
       const normalizedAgentPhone = normalizePhone(fromPhone);
       const agentEmail = request.auth.token.email || null;
@@ -270,23 +377,33 @@ exports.sendBuyerShowingRequests = onCall(
           address: target.address || 'the property',
           availability,
           note: target.note,
+          tourKind,
+          contactName: target.listingAgentName,
         });
 
+        const planned = await planOutboundSms(db, {
+          contactPhone: normalizedTo,
+          agentUid: request.auth.uid,
+          agentEmail,
+          agentPhone: normalizedAgentPhone,
+          teamId: teamId || null,
+          scheduleId: scheduleRef.id,
+        }, body);
+
         const sent = await getTwilioClient().messages.create({
-          body,
+          body: planned.body,
           from: fromPhone,
           to: normalizedTo,
         });
 
-        const threadKey = `${normalizedAgentPhone}::${normalizedTo}`;
         await db.collection('messages').add({
-          threadKey,
+          threadKey: planned.threadKey,
           agentUid: request.auth.uid,
           agentEmail,
           agentPhone: normalizedAgentPhone,
           contactPhone: normalizedTo,
           direction: 'outbound',
-          body,
+          body: planned.body,
           twilioSid: sent.sid,
           scheduleId: scheduleRef.id,
           messageType: 'buyer_showing_request',
@@ -297,13 +414,7 @@ exports.sendBuyerShowingRequests = onCall(
           read: true,
         });
 
-        await upsertSmsRouting(db, normalizedTo, {
-          agentUid: request.auth.uid,
-          agentEmail,
-          agentPhone: normalizedAgentPhone,
-          teamId: teamId || null,
-          scheduleId: scheduleRef.id,
-        });
+        await commitOutboundSms(db, planned);
 
         target.status = 'pending';
         sentCount += 1;
@@ -318,7 +429,9 @@ exports.sendBuyerShowingRequests = onCall(
         buyerName: householdLabel || agentName,
         availability,
         targets: sentTargets,
+        tourKind,
         status: sentCount > 0 ? 'requests_sent' : 'draft',
+        needsReview: false,
         sentAt: sentCount > 0 ? now : scheduleData.sentAt || null,
         updatedAt: now,
         createdAt: scheduleData.createdAt || now,
@@ -346,6 +459,7 @@ exports.buildBuyerRoute = onCall(async (request) => {
     if (!request.auth) {
       throw new HttpsError('unauthenticated', 'Must be authenticated');
     }
+    await assertSubscriptionActive(request.auth.uid);
 
     const { scheduleId } = request.data || {};
     if (!scheduleId) {
@@ -377,6 +491,8 @@ exports.buildBuyerRoute = onCall(async (request) => {
         ownerUid: request.auth.uid,
         expiresAt: admin.firestore.Timestamp.fromDate(new Date(Date.now() + TOKEN_TTL_MS)),
         createdAt: now,
+        publicListings: publicListingStops(updatedTargets),
+        tourKind: normalizeTourKind(schedule.tourKind),
       }, { merge: true });
       shareLink = `${getFrontendUrl()}/client/plan?t=${shareTokenId}`;
     }
@@ -400,6 +516,9 @@ exports.buildBuyerRoute = onCall(async (request) => {
         status: target.status,
         confirmed: target.status === 'confirmed',
         lastInboundPreview: target.lastInboundPreview || null,
+        clientNote: target.clientNote || '',
+        clientRank: target.clientRank || null,
+        clientInterest: target.clientInterest === 'passed' ? 'passed' : 'interested',
       })),
       confirmedCount: orderedStops.length,
       orderedStops,
@@ -413,15 +532,142 @@ exports.buildBuyerRoute = onCall(async (request) => {
   }
 });
 
-exports.getBuyerPlan = onCall(async (request) => {
+exports.getBuyerPlan = onCall({ timeoutSeconds: 30, memory: '256MiB' }, async (request) => {
   try {
-    const { token } = request.data || {};
+    const db = admin.firestore();
+    const { tokenRef, tokenData, expiresAt, scheduleRef, schedule } = await loadScheduleFromPlanToken(db, request.data?.token);
+    const ensured = ensureTargetIds(schedule.targets);
+    const targets = ensured.targets;
+    if (ensured.changed) {
+      await scheduleRef.set({ targets }, { merge: true });
+    }
+    const listings = mergePublicListingPhotos(
+      publicListingStops(targets),
+      tokenData.publicListings || tokenData.publicPlan?.listings || [],
+    );
+    const orderedStops = Array.isArray(schedule.orderedStops) && schedule.orderedStops.length
+      ? schedule.orderedStops
+      : listings.filter((stop) => stop.status === 'confirmed').map((stop) => stop.address);
+    const household = Array.isArray(schedule.buyers) ? schedule.buyers : [];
+    const householdLabel = formatHouseholdLabel(household, schedule.buyerName || '');
+    const payload = {
+      success: true,
+      buyerName: householdLabel || schedule.agentName || 'Your agent',
+      agentName: schedule.agentName || null,
+      buyers: publicBuyers(household),
+      tourKind: normalizeTourKind(schedule.tourKind),
+      availability: schedule.availability || null,
+      listings,
+      orderedStops,
+      mapsLink: schedule.mapsLink || null,
+      stopCount: orderedStops.length,
+      pendingCount: listings.filter((stop) => stop.status === 'pending').length,
+      expiresAt: expiresAt.toISOString(),
+      canSubmitListings: true,
+    };
+    await tokenRef.set({
+      publicListings: listings,
+      publicPlan: payload,
+      tourKind: payload.tourKind,
+    }, { merge: true });
+
+    return payload;
+  } catch (error) {
+    console.error('getBuyerPlan error:', error);
+    if (error instanceof HttpsError) throw error;
+    throw new HttpsError('internal', 'Failed to load buyer plan');
+  }
+});
+
+exports.updateBuyerShowingFeedback = onCall({ cors: true }, async (request) => {
+  try {
+    const db = admin.firestore();
+    const { tokenRef, tokenData, scheduleRef, schedule } = await loadScheduleFromPlanToken(db, request.data?.token);
+    const ensured = ensureTargetIds(schedule.targets);
+    let targets = ensured.targets;
+    const updates = Array.isArray(request.data?.updates) ? request.data.updates : [];
+
+    for (const update of updates) {
+      const id = String(update?.id || '');
+      const address = String(update?.address || '').trim();
+      const idx = targets.findIndex((target) => (
+        (id && target.id === id) || (address && target.address === address)
+      ));
+      if (idx < 0) continue;
+      const next = { ...targets[idx] };
+      if (Object.prototype.hasOwnProperty.call(update, 'clientNote')) {
+        next.clientNote = String(update.clientNote || '').trim().slice(0, MAX_CLIENT_NOTE);
+      }
+      if (update?.clientInterest === 'passed' || update?.clientInterest === 'interested') {
+        next.clientInterest = update.clientInterest;
+      }
+      targets[idx] = next;
+    }
+
+    targets = recomputeFavoriteRanks(targets, request.data?.favoriteOrder);
+
+    await scheduleRef.set({
+      targets,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    }, { merge: true });
+
+    const listings = publicListingStops(targets);
+    if (tokenData.scheduleId) {
+      await tokenRef.set({ publicListings: listings }, { merge: true });
+    }
+
+    return { success: true, listings };
+  } catch (error) {
+    console.error('updateBuyerShowingFeedback error:', error);
+    if (error instanceof HttpsError) throw error;
+    throw new HttpsError('internal', 'Failed to save showing notes');
+  }
+});
+
+const LISTING_PARSE_OPTS = {
+  cors: true,
+  timeoutSeconds: 120,
+  memory: '512MiB',
+};
+
+exports.parsePropertyLinks = onCall(LISTING_PARSE_OPTS, async (request) => {
+  try {
+    if (!request.auth) {
+      throw new HttpsError('unauthenticated', 'Must be authenticated');
+    }
+
+    const urls = Array.isArray(request.data?.urls) ? request.data.urls : [];
+    const tourKind = normalizeTourKind(request.data?.tourKind);
+    const listings = await parsePropertyUrls(urls, { tourKind });
+    if (listings.length === 0) {
+      throw new HttpsError('invalid-argument', 'Paste Zillow, Redfin, or Realtor.com links');
+    }
+
+    return {
+      success: true,
+      listings,
+      imported: listings.length,
+      needsReview: listings.some((row) => !row.target?.listingAgentPhone || row.target?.parseStatus !== 'ok'),
+    };
+  } catch (error) {
+    console.error('parsePropertyLinks error:', error);
+    if (error instanceof HttpsError) throw error;
+    if (String(error.message || '').includes('GOOGLEAI_KEY')) {
+      throw new HttpsError('failed-precondition', 'Listing import is not configured yet.');
+    }
+    throw new HttpsError('internal', error.message || 'Failed to parse listing links');
+  }
+});
+
+exports.submitBuyerListingLinks = onCall(LISTING_PARSE_OPTS, async (request) => {
+  try {
+    const { token, urls } = request.data || {};
     if (!token) {
       throw new HttpsError('invalid-argument', 'token is required');
     }
 
     const db = admin.firestore();
-    const tokenRef = db.collection('clientPlanTokens').doc(token);
+    const tokenRef = db.collection('clientPlanTokens').doc(String(token));
     const tokenSnap = await tokenRef.get();
     if (!tokenSnap.exists) {
       throw new HttpsError('not-found', 'This plan link is invalid or has expired');
@@ -432,31 +678,34 @@ exports.getBuyerPlan = onCall(async (request) => {
     if (!expiresAt || expiresAt <= new Date()) {
       throw new HttpsError('failed-precondition', 'This plan link has expired');
     }
-
-    const scheduleSnap = await db.collection('buyerSchedules').doc(tokenData.scheduleId).get();
-    if (!scheduleSnap.exists) {
-      throw new HttpsError('not-found', 'Showing plan not found');
+    if (!tokenData.scheduleId || !tokenData.ownerUid) {
+      throw new HttpsError('failed-precondition', 'This plan is not ready to accept listings');
     }
 
-    const schedule = scheduleSnap.data();
-    const orderedStops = Array.isArray(schedule.orderedStops) ? schedule.orderedStops : [];
-    const household = Array.isArray(schedule.buyers) ? schedule.buyers : [];
-    const householdLabel = formatHouseholdLabel(household, schedule.buyerName || '');
+    const result = await ingestListingUrls({
+      db,
+      urls: Array.isArray(urls) ? urls : [],
+      agentUid: tokenData.ownerUid,
+      scheduleId: tokenData.scheduleId,
+      source: 'portal',
+    });
 
     return {
       success: true,
-      buyerName: householdLabel || schedule.agentName || 'Your agent',
-      agentName: schedule.agentName || null,
-      buyers: publicBuyers(household),
-      availability: schedule.availability || null,
-      orderedStops,
-      mapsLink: schedule.mapsLink || null,
-      stopCount: orderedStops.length,
-      expiresAt: expiresAt.toISOString(),
+      imported: result.imported,
+      needsReview: result.needsReview,
+      scheduleId: result.scheduleId,
+      listings: result.publicStops || [],
     };
   } catch (error) {
-    console.error('getBuyerPlan error:', error);
+    console.error('submitBuyerListingLinks error:', error);
     if (error instanceof HttpsError) throw error;
-    throw new HttpsError('internal', 'Failed to load buyer plan');
+    if (error.message === 'NO_VALID_URLS') {
+      throw new HttpsError('invalid-argument', 'Paste Zillow, Redfin, or Realtor.com links');
+    }
+    if (String(error.message || '').includes('GOOGLEAI_KEY')) {
+      throw new HttpsError('failed-precondition', 'Listing import is not configured yet.');
+    }
+    throw new HttpsError('internal', error.message || 'Failed to submit listing links');
   }
 });

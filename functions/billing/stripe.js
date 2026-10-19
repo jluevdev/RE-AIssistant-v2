@@ -14,6 +14,7 @@ function getAllowedPriceIds() {
   return [
     process.env.STRIPE_PRICE_SINGLE_AGENT,
     process.env.STRIPE_PRICE_ALL_INCLUSIVE,
+    process.env.STRIPE_PRICE_ALL_INCLUSIVE_YEARLY,
     process.env.STRIPE_PRICE_PREMIUM_TEAM,
   ].filter(Boolean);
 }
@@ -26,7 +27,7 @@ function assertAllowedPriceId(priceId) {
 }
 
 function getFrontendUrl() {
-  return process.env.FRONTEND_URL || 'https://reaiassistant-v2.web.app';
+  return process.env.FRONTEND_URL || 'https://reaissistant.com';
 }
 
 module.exports = {

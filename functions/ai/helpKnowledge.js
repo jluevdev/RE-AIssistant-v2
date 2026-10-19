@@ -5,13 +5,14 @@
 
 const ALLOWED_ROUTES = [
   { to: '/dashboard', label: 'Dashboard' },
+  { to: '/assistant', label: 'Assistant' },
   { to: '/messages', label: 'Messages' },
   { to: '/contacts', label: 'Contacts' },
   { to: '/automations', label: 'Automations' },
   { to: '/open-houses', label: 'Open Houses' },
   { to: '/listings/new', label: 'Create Listing' },
   { to: '/offers', label: 'Offers' },
-  { to: '/buyer/schedule', label: 'Buyer Scheduling' },
+  { to: '/buyer/schedule', label: 'Tours' },
   { to: '/team', label: 'Team' },
   { to: '/billing', label: 'Billing' },
 ];
@@ -40,10 +41,10 @@ const HELP_ENTRIES = [
   },
   {
     id: 'buyer-schedule',
-    keywords: ['buyer', 'showing', 'showings', 'tour', 'schedule', 'route'],
+    keywords: ['buyer', 'showing', 'showings', 'tour', 'schedule', 'route', 'zillow', 'redfin', 'realtor', 'mls', 'rental', 'rent', 'renter'],
     answer:
-      'Plan buyer tours under Buyer Agent → Buyer Scheduling. Add every co-borrower (Buyer 1, Buyer 2, …), send showing requests, and share one plan link with the household.',
-    links: [{ to: '/buyer/schedule', label: 'Buyer Scheduling' }],
+      'Plan sale or rental tours under Buyer Agent → Tours. Choose Sale tour or Rental tour, add the household, paste Zillow/Redfin/Realtor links (or type address + contact phone), review numbers, then send showing requests. Rental tours text the owner or property manager, not a prior sale agent. Share one plan link with the household — they can also paste more listing links there.',
+    links: [{ to: '/buyer/schedule', label: 'Tours' }],
   },
   {
     id: 'messages',
@@ -77,7 +78,7 @@ const HELP_ENTRIES = [
     id: 'billing',
     keywords: ['billing', 'plan', 'subscription', 'trial', 'upgrade', 'stripe', 'price'],
     answer:
-      'Manage your plan under Account → Billing. Plans include a $10 one-day trial; upgrade or change plans from that page.',
+      'Manage your plan under Account → Billing. New accounts include a free 7-day trial; add billing info from that page to continue after the trial.',
     links: [{ to: '/billing', label: 'Billing' }],
   },
   {

@@ -8,6 +8,7 @@ const BILLING_SECRETS = [
   'STRIPE_WEBHOOK_SECRET',
   'STRIPE_PRICE_SINGLE_AGENT',
   'STRIPE_PRICE_ALL_INCLUSIVE',
+  'STRIPE_PRICE_ALL_INCLUSIVE_YEARLY',
   'STRIPE_PRICE_PREMIUM_TEAM',
   'FRONTEND_URL',
 ];
@@ -36,6 +37,22 @@ exports.createCheckoutSession = onCall(
       const stripe = getStripe();
       const frontendUrl = getFrontendUrl();
 
+      const userSnap = await admin.firestore().collection('users').doc(userId).get();
+      const existingSub = userSnap.exists ? userSnap.data().subscription || {} : {};
+      const endMs = existingSub.endDate?.toMillis?.()
+        || (typeof existingSub.endDate?.seconds === 'number' ? existingSub.endDate.seconds * 1000 : 0);
+      const trialElapsed = existingSub.plan === 'trial' && endMs > 0 && endMs <= Date.now();
+      const subscriptionData = {
+        metadata: {
+          userId,
+          planName,
+          planKey: planKey || '',
+        },
+      };
+      if (!trialElapsed) {
+        subscriptionData.trial_period_days = 7;
+      }
+
       const session = await stripe.checkout.sessions.create({
         payment_method_types: ['card'],
         line_items: [{ price: priceId, quantity: 1 }],
@@ -49,14 +66,7 @@ exports.createCheckoutSession = onCall(
           planName,
           planKey: planKey || '',
         },
-        subscription_data: {
-          metadata: {
-            userId,
-            planName,
-            planKey: planKey || '',
-          },
-          trial_period_days: 7,
-        },
+        subscription_data: subscriptionData,
       });
 
       return { success: true, url: session.url, sessionId: session.id };

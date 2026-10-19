@@ -40,13 +40,46 @@ service cloud.firestore {
         );
     }
 
+    function userData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function teamBillingActive() {
+      let teamId = userData().get('teamId', '');
+      return teamId is string
+        && teamId.size() > 0
+        && exists(/databases/$(database)/documents/teams/$(teamId))
+        && get(/databases/$(database)/documents/teams/$(teamId)).data.get('billing', {}).get('status', '') in ['active', 'trialing'];
+    }
+
+    function outboundAllowed() {
+      let sub = userData().get('subscription', {});
+      let plan = sub.get('plan', 'trial');
+      let status = sub.get('status', '');
+      let stripeId = sub.get('stripeSubscriptionId', '');
+      let blocked = status in ['canceled', 'unpaid', 'incomplete_expired'];
+      let hasStripe = stripeId is string && stripeId.size() > 0;
+      let paidPlan = plan is string && plan.size() > 0 && plan != 'trial';
+      let paid = !blocked && (hasStripe || paidPlan);
+      let end = sub.get('endDate', null);
+      let trialOpen = end == null || end > request.time;
+      return paid || trialOpen || teamBillingActive();
+    }
+
     // Users: self-access only; teamId/teamRole are server-managed
     match /users/{userId} {
       allow read: if isOwner(userId);
-      allow create: if isOwner(userId);
+      allow create: if isOwner(userId)
+        && !request.resource.data.keys().hasAny(['subscription']);
       allow update: if isOwner(userId)
         && request.resource.data.get('teamId', null) == resource.data.get('teamId', null)
-        && request.resource.data.get('teamRole', null) == resource.data.get('teamRole', null);
+        && request.resource.data.get('teamRole', null) == resource.data.get('teamRole', null)
+        && request.resource.data.get('subscription', null) == resource.data.get('subscription', null)
+        && request.resource.data.get('line', null) == resource.data.get('line', null)
+        && request.resource.data.get('guardrailLevel', null) == resource.data.get('guardrailLevel', null)
+        && request.resource.data.get('pendingAction', null) == resource.data.get('pendingAction', null)
+        && request.resource.data.get('useOwnAiKey', null) == resource.data.get('useOwnAiKey', null)
+        && request.resource.data.get('activeBotId', null) == resource.data.get('activeBotId', null);
       allow delete: if isOwner(userId);
     }
 
@@ -127,7 +160,7 @@ service cloud.firestore {
       allow create: if isSignedIn() && (
         request.resource.data.ownerUid == request.auth.uid ||
         request.resource.data.agentId == request.auth.uid
-      );
+      ) && outboundAllowed();
       allow update, delete: if ownsResource(resource);
     }
 
@@ -198,7 +231,7 @@ service cloud.firestore {
     }
 
     match /buyerSchedules/{scheduleId} {
-      allow create: if isSignedIn() && request.resource.data.ownerUid == request.auth.uid;
+      allow create: if isSignedIn() && request.resource.data.ownerUid == request.auth.uid && outboundAllowed();
       allow read: if isSignedIn() && resource.data.ownerUid == request.auth.uid;
       allow update: if isSignedIn()
         && resource.data.ownerUid == request.auth.uid
@@ -207,7 +240,26 @@ service cloud.firestore {
     }
 
     match /clientPlanTokens/{tokenId} {
+      allow read: if true;
+      allow create: if isSignedIn() && request.resource.data.ownerUid == request.auth.uid;
+      allow update, delete: if false;
+    }
+
+    match /trialSurveys/{surveyId} {
       allow read, write: if false;
+    }
+
+    match /aiCredentials/{userId} {
+      allow read, write: if false;
+    }
+
+    match /platformConfig/{docId} {
+      allow read, write: if false;
+    }
+
+    match /users/{userId}/assistantBots/{botId} {
+      allow read: if isOwner(userId);
+      allow write: if false;
     }
 
     match /dnc/{phone} {
@@ -220,6 +272,30 @@ service cloud.firestore {
 
     match /smsRouting/{phone} {
       allow read, write: if false;
+    }
+
+    match /agentLines/{phone} {
+      allow read: if isSignedIn() && resource.data.uid == request.auth.uid;
+      allow write: if false;
+    }
+
+    match /pendingActions/{actionId} {
+      allow read: if isSignedIn() && resource.data.uid == request.auth.uid;
+      allow write: if false;
+    }
+
+    match /signaturePackets/{packetId} {
+      allow read: if isSignedIn() && resource.data.ownerUid == request.auth.uid;
+      allow write: if false;
+    }
+
+    match /signatureInvites/{token} {
+      allow read, write: if false;
+    }
+
+    match /users/{userId}/guardrailAudits/{auditId} {
+      allow read: if isOwner(userId);
+      allow write: if false;
     }
 
     match /{document=**} {

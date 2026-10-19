@@ -73,12 +73,8 @@ function buildUserProfile(email, profile) {
     company: profile.company || '',
     phone: profile.phone || '',
     emailVerified: false,
-    subscription: {
-      plan: 'trial',
-      status: 'active',
-      startDate: now,
-      endDate: new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000),
-    },
+    ...(profile.personalAssistant ? { personalAssistant: profile.personalAssistant } : {}),
+    ...(profile.source ? { source: profile.source } : {}),
   };
 }
 

@@ -5,6 +5,8 @@ import { db, functions as fbFunctions } from '../../config/firebase'
 import { doc, getDoc } from 'firebase/firestore'
 import { httpsCallable } from 'firebase/functions'
 import { Badge, Button, Card, EmptyState, Input, PageHeader } from '../../components/ui'
+import SignaturePrep from '../esign/SignaturePrep'
+import OfferFile from './OfferFile'
 
 export default function OfferDetail() {
   const { offerId } = useParams()
@@ -74,6 +76,9 @@ export default function OfferDetail() {
           </Badge>
         }
       />
+
+      <SignaturePrep offerId={offer.id} />
+      <OfferFile offer={offer} onSaved={load} />
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="md:col-span-2 space-y-4">

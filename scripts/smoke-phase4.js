@@ -41,6 +41,8 @@ for (const file of [
   'src/features/buyer/BuyerScheduling.jsx',
   'src/features/buyer/BuyerClientPortal.jsx',
   'src/features/buyer/buyerHousehold.js',
+  'src/features/buyer/buyerTime.js',
+  'functions/buyer/listingLinks.js',
   'src/features/messages/MessagesInbox.jsx',
   'src/features/messages/useUnreadMessages.js',
   'src/features/contacts/ContactsPage.jsx',
@@ -81,6 +83,8 @@ for (const fn of [
   'sendBuyerShowingRequests',
   'buildBuyerRoute',
   'getBuyerPlan',
+  'parsePropertyLinks',
+  'submitBuyerListingLinks',
   'processScheduledTasksScheduled',
   'processScheduledTasksHttp',
   'onOpenHouseVisitorCreated',
@@ -137,11 +141,26 @@ const portalSrc = read('src/features/buyer/BuyerClientPortal.jsx');
 portalSrc.includes("httpsCallable(functions, 'getBuyerPlan')")
   ? pass('buyer:getBuyerPlan-callable')
   : fail('buyer:getBuyerPlan-callable', 'client portal should not read tokens directly');
-if (portalSrc.includes('clientPlanTokens')) {
-  fail('buyer:portal-token-leak', 'client portal reads clientPlanTokens directly');
+if (portalSrc.includes("httpsCallable(functions, 'submitBuyerListingLinks')")) {
+  pass('buyer:portal-submit');
+} else {
+  fail('buyer:portal-submit', 'client portal should submit listing links via callable');
+}
+if (portalSrc.includes("httpsCallable(functions, 'updateBuyerShowingFeedback')")) {
+  pass('buyer:portal-showing-feedback');
+} else {
+  fail('buyer:portal-showing-feedback', 'client portal should save showing notes/ranks via callable');
+}
+if (portalSrc.includes('setDoc') && portalSrc.includes('clientPlanTokens')) {
+  fail('buyer:portal-token-leak', 'client portal should not write clientPlanTokens');
 } else {
   pass('buyer:portal-token-leak');
 }
+
+const listingLinksSrc = read('functions/buyer/listingLinks.js');
+listingLinksSrc.includes('parsePropertyUrls') && listingLinksSrc.includes('zillow.com')
+  ? pass('buyer:listing-parse')
+  : fail('buyer:listing-parse', 'listingLinks.js should parse Zillow/Redfin/Realtor URLs');
 
 const buyerHouseholdSrc = read('src/features/buyer/buyerHousehold.js');
 buyerHouseholdSrc.includes('normalizeBuyers') && buyerHouseholdSrc.includes('formatHouseholdLabel')
@@ -152,6 +171,26 @@ const buyerScheduleSrc = read('src/features/buyer/BuyerScheduling.jsx');
 buyerScheduleSrc.includes('Add co-borrower') && buyerScheduleSrc.includes('buyers:')
   ? pass('buyer:household-ui')
   : fail('buyer:household-ui', 'BuyerScheduling should collect named co-buyers');
+
+buyerScheduleSrc.includes('parsePropertyLinks') && buyerScheduleSrc.includes('Import links')
+  ? pass('buyer:paste-links')
+  : fail('buyer:paste-links', 'BuyerScheduling should paste/import listing URLs');
+
+buyerScheduleSrc.includes('Review & send showing requests')
+  ? pass('buyer:review-send')
+  : fail('buyer:review-send', 'BuyerScheduling should require review before sending');
+
+buyerScheduleSrc.includes('onSelect={goToStep}') && buyerScheduleSrc.includes('canOpenStep')
+  ? pass('buyer:clickable-steps')
+  : fail('buyer:clickable-steps', 'tour steps 1-3 should be clickable');
+
+buyerScheduleSrc.includes('formatTime12') && portalSrc.includes('formatAvailabilityLabel')
+  ? pass('buyer:time-12h')
+  : fail('buyer:time-12h', 'times should display in 12-hour format');
+
+portalSrc.includes('Español') && portalSrc.includes('COPY')
+  ? pass('buyer:portal-spanish')
+  : fail('buyer:portal-spanish', 'client portal should include Spanish copy');
 
 const buyerHandlersSrc = read('functions/buyer/handlers.js');
 buyerHandlersSrc.includes('buyers: household') && buyerHandlersSrc.includes('publicBuyers')

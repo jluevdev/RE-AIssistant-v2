@@ -39,13 +39,27 @@ function getTwilioFromNumber() {
   return getTwilioConfig().phoneNumber;
 }
 
+function publicWebhookUrl(req) {
+  const configured = String(process.env.TWILIO_WEBHOOK_URL || '').trim();
+  if (configured) return configured;
+  const host = req.get('x-forwarded-host') || req.get('host') || '';
+  const path = req.originalUrl || req.url || '';
+  return `https://${host}${path}`;
+}
+
 function validateTwilioRequest(req) {
   const signature = req.headers['x-twilio-signature'];
   if (!signature) return true;
   try {
     const { authToken } = getTwilioConfig();
-    const url = `${req.protocol}://${req.get('host')}${req.originalUrl}`;
-    return twilio.validateRequest(authToken, signature, url, req.body || {});
+    const params = req.body || {};
+    const host = req.get('x-forwarded-host') || req.get('host') || '';
+    const path = req.originalUrl || req.url || '';
+    const candidates = [
+      publicWebhookUrl(req),
+      host ? `https://${host}${path}` : '',
+    ].filter(Boolean);
+    return candidates.some((url) => twilio.validateRequest(authToken, signature, url, params));
   } catch (error) {
     console.warn('Twilio signature validation error:', error.message);
     return false;
@@ -57,5 +71,6 @@ module.exports = {
   getTwilioConfig,
   getTwilioClient,
   getTwilioFromNumber,
+  publicWebhookUrl,
   validateTwilioRequest,
 };

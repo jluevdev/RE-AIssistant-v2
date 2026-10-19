@@ -22,7 +22,7 @@ import TeamInviteBanner from '../../features/teams/TeamInviteBanner';
 import OnboardingWizard from '../../features/onboarding/OnboardingWizard';
 import InstallPrompt from '../../features/onboarding/InstallPrompt';
 import { OnboardingUiProvider, useOnboardingUi } from '../../features/onboarding/OnboardingContext';
-import HelpChatWidget from '../../features/help/HelpChatWidget';
+import PersonalAssistant from '../../features/assistant/PersonalAssistant';
 import {
   TesterChecklistProvider,
   useTesterChecklistUi,
@@ -130,7 +130,7 @@ function NavSections({ collapsed = false, onNavigate, unreadCount = 0 }) {
   );
 }
 
-function AccountMenu({ email, plan, onLogout, onDeleteAccount, onGettingStarted, onTesterChecklist, testerMode }) {
+function AccountMenu({ email, plan, onLogout, onDeleteAccount, onGettingStarted, onTesterChecklist, testerMode, assistantHidden, onToggleAssistant }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
 
@@ -189,6 +189,17 @@ function AccountMenu({ email, plan, onLogout, onDeleteAccount, onGettingStarted,
             className="block w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50"
           >
             Getting started
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => {
+              setOpen(false);
+              onToggleAssistant?.();
+            }}
+            className="block w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50"
+          >
+            {assistantHidden ? 'Show my AIssistant' : 'Hide my AIssistant'}
           </button>
           <button
             type="button"
@@ -260,7 +271,7 @@ function QuickActionSheet({ open, onClose }) {
 }
 
 /** Slide-in drawer with full nav for mobile ("More" / hamburger). */
-function MobileDrawer({ open, onClose, email, plan, onLogout, onDeleteAccount, unreadCount, onGettingStarted, onTesterChecklist, testerMode }) {
+function MobileDrawer({ open, onClose, email, plan, onLogout, onDeleteAccount, unreadCount, onGettingStarted, onTesterChecklist, testerMode, assistantHidden, onToggleAssistant }) {
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-50 md:hidden" role="dialog" aria-modal="true" aria-label="Menu">
@@ -295,6 +306,16 @@ function MobileDrawer({ open, onClose, email, plan, onLogout, onDeleteAccount, u
             className="mt-2 flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
           >
             Getting started
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              onClose();
+              onToggleAssistant?.();
+            }}
+            className="mt-1 flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
+          >
+            {assistantHidden ? 'Show my AIssistant' : 'Hide my AIssistant'}
           </button>
           <button
             type="button"
@@ -344,7 +365,7 @@ export default function AppLayout({ children }) {
 }
 
 function AppLayoutInner({ children }) {
-  const { currentUser, userProfile, logout } = useAuth();
+  const { currentUser, userProfile, logout, updateUserProfile } = useAuth();
   const { reopenWizard } = useOnboardingUi();
   const { enableTesterMode, testerMode } = useTesterChecklistUi();
   const unreadCount = useUnreadMessages();
@@ -359,6 +380,20 @@ function AppLayoutInner({ children }) {
 
   const email = currentUser?.email || '';
   const plan = planLabel(userProfile?.subscription);
+  const assistantHidden = Boolean(userProfile?.personalAssistant?.hidden);
+
+  async function toggleAssistant() {
+    if (!currentUser) return;
+    const current = userProfile?.personalAssistant || {};
+    await updateUserProfile(currentUser.uid, {
+      personalAssistant: {
+        name: current.name || '',
+        walkaroundStep: current.walkaroundStep || 0,
+        walkaroundDone: Boolean(current.walkaroundDone),
+        hidden: !current.hidden,
+      },
+    });
+  }
 
   useEffect(() => {
     window.localStorage.setItem(SIDEBAR_STORAGE_KEY, collapsed ? '1' : '0');
@@ -439,6 +474,8 @@ function AppLayoutInner({ children }) {
               onGettingStarted={reopenWizard}
               onTesterChecklist={() => enableTesterMode(true)}
               testerMode={testerMode}
+              assistantHidden={assistantHidden}
+              onToggleAssistant={toggleAssistant}
             />
           </div>
         </header>
@@ -512,10 +549,12 @@ function AppLayoutInner({ children }) {
         onGettingStarted={reopenWizard}
         onTesterChecklist={() => enableTesterMode(true)}
         testerMode={testerMode}
+        assistantHidden={assistantHidden}
+        onToggleAssistant={toggleAssistant}
       />
       <DeleteAccountModal open={deleteAccountOpen} onClose={() => setDeleteAccountOpen(false)} />
       <TesterChecklistOverlay />
-      <HelpChatWidget />
+      <PersonalAssistant />
     </div>
   );
 }

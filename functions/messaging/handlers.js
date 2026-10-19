@@ -7,51 +7,21 @@ const {
   getTwilioFromNumber,
   validateTwilioRequest,
 } = require('../shared/twilio');
+const { extractListingUrls, ingestListingUrls } = require('../buyer/listingLinks');
+const { assertSubscriptionActive } = require('../shared/subscription');
+const {
+  planOutboundSms,
+  commitOutboundSms,
+  resolveInboundSms,
+  patchRouteCandidate,
+} = require('../shared/smsRouting');
+const { handleAgentLineInbound } = require('../line/inbound');
 
 function twiml(message) {
   const body = message
     ? `<Message>${String(message).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</Message>`
     : '';
   return `<?xml version="1.0" encoding="UTF-8"?><Response>${body}</Response>`;
-}
-
-async function upsertSmsRouting(db, contactPhone, data) {
-  await db.collection('smsRouting').doc(contactPhone).set({
-    ...data,
-    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-  }, { merge: true });
-}
-
-async function resolveThreadContext(db, contactPhone, agentPhone) {
-  const routeSnap = await db.collection('smsRouting').doc(contactPhone).get();
-  if (routeSnap.exists) {
-    return routeSnap.data();
-  }
-
-  const listingsSnap = await db.collection('listings')
-    .where('agentPhone', '==', agentPhone)
-    .limit(1)
-    .get();
-
-  if (!listingsSnap.empty) {
-    const listingDoc = listingsSnap.docs[0];
-    const listing = listingDoc.data();
-    return {
-      agentUid: listing.ownerUid || null,
-      teamId: listing.teamId || null,
-      listingId: listingDoc.id,
-      offerId: null,
-      scheduleId: null,
-    };
-  }
-
-  return {
-    agentUid: null,
-    teamId: null,
-    offerId: null,
-    listingId: null,
-    scheduleId: null,
-  };
 }
 
 exports.sendAgentSms = onCall(
@@ -61,6 +31,7 @@ exports.sendAgentSms = onCall(
       if (!request.auth) {
         throw new HttpsError('unauthenticated', 'Must be authenticated');
       }
+      await assertSubscriptionActive(request.auth.uid);
 
       const { toPhone, fromPhone, message, offerId = null, listingId = null, scheduleId = null } = request.data || {};
       if (!toPhone || !message) {
@@ -78,23 +49,32 @@ exports.sendAgentSms = onCall(
         throw new HttpsError('failed-precondition', 'Recipient has opted out (DNC)');
       }
 
+      const teamId = await getUserTeamIdOrNull(request.auth.uid);
+      const planned = await planOutboundSms(db, {
+        contactPhone: normalizedTo,
+        agentUid: request.auth.uid,
+        agentEmail,
+        agentPhone: normalizedAgentPhone,
+        teamId: teamId || null,
+        offerId: offerId || null,
+        listingId: listingId || null,
+        scheduleId: scheduleId || null,
+      }, message);
+
       const sent = await getTwilioClient().messages.create({
-        body: message,
+        body: planned.body,
         from,
         to: normalizedTo,
       });
 
-      const teamId = await getUserTeamIdOrNull(request.auth.uid);
-      const threadKey = `${normalizedAgentPhone}::${normalizedTo}`;
-
       await db.collection('messages').add({
-        threadKey,
+        threadKey: planned.threadKey,
         agentUid: request.auth.uid,
         agentEmail,
         agentPhone: normalizedAgentPhone,
         contactPhone: normalizedTo,
         direction: 'outbound',
-        body: message,
+        body: planned.body,
         twilioSid: sent.sid,
         listingId: listingId || null,
         offerId: offerId || null,
@@ -105,15 +85,7 @@ exports.sendAgentSms = onCall(
         read: true,
       });
 
-      await upsertSmsRouting(db, normalizedTo, {
-        agentUid: request.auth.uid,
-        agentEmail,
-        agentPhone: normalizedAgentPhone,
-        teamId: teamId || null,
-        offerId: offerId || null,
-        listingId: listingId || null,
-        scheduleId: scheduleId || null,
-      });
+      await commitOutboundSms(db, planned);
 
       return { success: true, sid: sent.sid, status: sent.status };
     } catch (error) {
@@ -128,7 +100,11 @@ exports.sendAgentSms = onCall(
 );
 
 exports.smsWebhook = onRequest(
-  { secrets: ['TWILIO_ACCOUNT_SID', 'TWILIO_AUTH_TOKEN', 'TWILIO_PHONE_NUMBER'] },
+  {
+    secrets: ['TWILIO_ACCOUNT_SID', 'TWILIO_AUTH_TOKEN', 'TWILIO_PHONE_NUMBER', 'GOOGLEAI_KEY', 'XAI_API_KEY', 'AI_CREDENTIALS_KEY', 'FRONTEND_URL'],
+    timeoutSeconds: 120,
+    memory: '512MiB',
+  },
   async (req, res) => {
     try {
       if (req.method !== 'POST') {
@@ -149,7 +125,6 @@ exports.smsWebhook = onRequest(
 
       const normalizedAgentPhone = normalizePhone(toPhone);
       const normalizedContactPhone = normalizePhone(fromPhone);
-      const threadKey = `${normalizedAgentPhone}::${normalizedContactPhone}`;
       const lower = messageBody.trim().toLowerCase();
 
       if (lower === 'stop' || lower === 'stop all' || lower === 'unsubscribe' || lower === 'cancel' || lower === 'end' || lower === 'quit') {
@@ -169,7 +144,7 @@ exports.smsWebhook = onRequest(
         return;
       }
 
-      if (lower === 'start' || lower === 'yes') {
+      if (lower === 'start') {
         await db.collection('dnc').doc(normalizedContactPhone).delete().catch(() => {});
         await db.collection('consents').doc(normalizedContactPhone).set({
           phone: normalizedContactPhone,
@@ -181,7 +156,77 @@ exports.smsWebhook = onRequest(
         return;
       }
 
-      const context = await resolveThreadContext(db, normalizedContactPhone, normalizedAgentPhone);
+      const lineResult = await handleAgentLineInbound({
+        db,
+        fromPhone,
+        toPhone,
+        messageBody,
+        messageSid,
+      });
+      if (lineResult) {
+        res.set('Content-Type', 'text/xml');
+        res.send(twiml(lineResult.reply || ''));
+        return;
+      }
+
+      const listingUrls = extractListingUrls(messageBody);
+      const context = await resolveInboundSms(db, normalizedContactPhone, messageBody);
+      if (!context?.agentUid) {
+        res.set('Content-Type', 'text/xml');
+        res.send(twiml(
+          context?.ambiguous
+            ? 'Reply with the 4-digit Ref code from the text you received so we can reach the right agent.'
+            : 'We could not match this text to an agent. Include the 4-digit Ref code from the text you received.',
+        ));
+        return;
+      }
+
+      const threadKey = context.threadKey;
+      let scheduleId = context.scheduleId || null;
+      let messageType = scheduleId ? 'buyer_showing_reply' : null;
+
+      if (listingUrls.length > 0) {
+        messageType = 'listing_links';
+        await db.collection('messages').add({
+          threadKey,
+          agentPhone: normalizedAgentPhone,
+          contactPhone: normalizedContactPhone,
+          direction: 'inbound',
+          body: messageBody,
+          twilioSid: messageSid,
+          agentUid: context.agentUid,
+          agentEmail: context.agentEmail || null,
+          teamId: context.teamId || null,
+          offerId: context.offerId || null,
+          listingId: context.listingId || null,
+          scheduleId: context.scheduleId || null,
+          messageType,
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          read: false,
+        });
+
+        res.set('Content-Type', 'text/xml');
+        res.send(twiml(`Got ${listingUrls.length} listing${listingUrls.length === 1 ? '' : 's'}. Your agent will review and set up showings.`));
+
+        try {
+          const result = await ingestListingUrls({
+            db,
+            urls: listingUrls,
+            agentUid: context.agentUid,
+            teamId: context.teamId || null,
+            scheduleId: context.scheduleId || null,
+            source: 'sms',
+            contactPhone: normalizedContactPhone,
+          });
+          await patchRouteCandidate(db, normalizedContactPhone, context.agentUid, {
+            scheduleId: result.scheduleId,
+            agentPhone: normalizedAgentPhone,
+          });
+        } catch (importError) {
+          console.error('sms listing import error:', importError);
+        }
+        return;
+      }
 
       await db.collection('messages').add({
         threadKey,
@@ -190,27 +235,16 @@ exports.smsWebhook = onRequest(
         direction: 'inbound',
         body: messageBody,
         twilioSid: messageSid,
-        agentUid: context.agentUid || null,
+        agentUid: context.agentUid,
         agentEmail: context.agentEmail || null,
         teamId: context.teamId || null,
         offerId: context.offerId || null,
         listingId: context.listingId || null,
-        scheduleId: context.scheduleId || null,
-        messageType: context.scheduleId ? 'buyer_showing_reply' : null,
+        scheduleId,
+        messageType,
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
         read: false,
       });
-
-      if (context.agentUid) {
-        await upsertSmsRouting(db, normalizedContactPhone, {
-          agentUid: context.agentUid,
-          teamId: context.teamId || null,
-          agentPhone: normalizedAgentPhone,
-          offerId: context.offerId || null,
-          listingId: context.listingId || null,
-          scheduleId: context.scheduleId || null,
-        });
-      }
 
       res.set('Content-Type', 'text/xml');
       res.send(twiml());

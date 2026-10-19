@@ -59,6 +59,8 @@ const TYPE_FILTERS = [
   { id: 'buyer', label: 'Buyers' },
   { id: 'seller', label: 'Sellers' },
   { id: 'listing_agent', label: 'Listing agents' },
+  { id: 'owner', label: 'Owners' },
+  { id: 'property_manager', label: 'Property managers' },
 ];
 
 const EMPTY_FORM = {
@@ -74,6 +76,7 @@ function typeTone(type) {
   if (type === 'buyer') return 'brand';
   if (type === 'seller') return 'success';
   if (type === 'listing_agent') return 'warning';
+  if (type === 'owner' || type === 'property_manager') return 'warning';
   return 'neutral';
 }
 

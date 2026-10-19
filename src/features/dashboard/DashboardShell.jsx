@@ -22,6 +22,9 @@ import {
 } from './dashboardMetrics';
 import useDashboardData from './useDashboardData';
 import useTeamDashboardData from './useTeamDashboardData';
+import useTrialStatus from '../billing/useTrialStatus';
+import TrialBanner from '../billing/TrialBanner';
+import TodayStrip from './TodayStrip';
 
 const TOOL_SECTIONS = [
   {
@@ -52,8 +55,8 @@ const TOOL_SECTIONS = [
     items: [
       {
         to: '/buyer/schedule',
-        title: 'Buyer Scheduling',
-        description: 'Request showings, collect confirmations, share a tour route.',
+        title: 'Tours',
+        description: 'Request sale or rental showings, collect confirmations, share a tour route.',
         icon: CalendarClock,
       },
     ],
@@ -122,6 +125,7 @@ function StatTile({ to, icon: Icon, value, label, subline, tone = 'brand', toolt
 
 export default function DashboardShell() {
   const { currentUser, userProfile } = useAuth();
+  const trial = useTrialStatus();
   const teamId = userProfile?.teamId || null;
   const [view, setView] = useState('personal');
   const personal = useDashboardData();
@@ -143,7 +147,7 @@ export default function DashboardShell() {
     <div>
       <PageHeader
         title={`Welcome back, ${firstName}`}
-        subtitle="Your workspace for offers, open houses, and buyer tours."
+        subtitle="Your workspace for offers, open houses, and tours."
         actions={
           <Badge tone={status === 'active' || status === 'trialing' ? 'success' : 'neutral'}>
             <Sparkles className="w-3 h-3" />
@@ -152,6 +156,10 @@ export default function DashboardShell() {
           </Badge>
         }
       />
+
+      <TrialBanner trial={trial} className="mb-6" />
+
+      <TodayStrip records={personal.data} loading={personal.loading} />
 
       <SetupChecklist />
 
@@ -238,7 +246,7 @@ export default function DashboardShell() {
               icon={CalendarClock}
               value={metrics.toursThisMonth}
               label="Tours scheduled"
-              subline={`${metrics.confirmedTargets} confirmed showings`}
+              subline={`${metrics.pendingTargets} pending showings · ${metrics.confirmedTargets} confirmed showings`}
               tone="warning"
             />
             <StatTile

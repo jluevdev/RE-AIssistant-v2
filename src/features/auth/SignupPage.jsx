@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { useAuth } from '../../contexts/AuthContext';
+import Logo from '../../components/layout/Logo';
 
 export default function SignupPage() {
   const [formData, setFormData] = useState({
@@ -13,6 +14,7 @@ export default function SignupPage() {
     licenseNumber: '',
     company: '',
     phone: '',
+    assistantName: '',
   });
   const [loading, setLoading] = useState(false);
   const { signup, googleSignIn, authError, setAuthError } = useAuth();
@@ -42,6 +44,10 @@ export default function SignupPage() {
       toast.error('Passwords do not match');
       return false;
     }
+    if (formData.assistantName.trim().length < 2) {
+      toast.error('Name your AIssistant');
+      return false;
+    }
     return true;
   }
 
@@ -58,6 +64,12 @@ export default function SignupPage() {
         licenseNumber: formData.licenseNumber.trim(),
         company: formData.company.trim(),
         phone: formData.phone.trim(),
+        personalAssistant: {
+          name: formData.assistantName.trim().slice(0, 24),
+          hidden: false,
+          walkaroundStep: 0,
+          walkaroundDone: false,
+        },
       });
       toast.success('Account created — check your email to verify');
       navigate(returnUrl.startsWith('/') ? returnUrl : '/dashboard');
@@ -85,6 +97,7 @@ export default function SignupPage() {
   return (
     <div className="min-h-screen flex items-center justify-center px-4 py-8">
       <div className="w-full max-w-md bg-white rounded-xl shadow-sm border border-slate-200 p-8">
+        <Logo variant="lockup" className="mb-6" />
         <h1 className="text-2xl font-bold mb-2">Create account</h1>
         <p className="text-sm text-slate-600 mb-6">No payment required for trial access</p>
 
@@ -171,6 +184,25 @@ export default function SignupPage() {
             onChange={handleChange}
             className="w-full border border-slate-300 rounded-lg px-3 py-2"
           />
+          <div>
+            <label htmlFor="assistantName" className="mb-1 block text-sm font-medium text-slate-700">
+              Name your AIssistant
+            </label>
+            <input
+              id="assistantName"
+              type="text"
+              name="assistantName"
+              placeholder="What should they be called?"
+              value={formData.assistantName}
+              onChange={handleChange}
+              maxLength={24}
+              className="w-full border border-slate-300 rounded-lg px-3 py-2"
+              required
+            />
+            <p className="mt-1 text-xs text-slate-500">
+              They stay on screen and walk you around. You can hide them later.
+            </p>
+          </div>
           <button
             type="submit"
             disabled={loading}

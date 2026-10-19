@@ -9,6 +9,9 @@ import {
   CreditCard,
   Zap,
   Building2,
+  Sparkles,
+  Phone,
+  Presentation,
 } from 'lucide-react';
 
 /**
@@ -23,6 +26,8 @@ export const NAV_SECTIONS = [
     label: null,
     items: [
       { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+      { to: '/line', label: 'Your line', icon: Phone },
+      { to: '/assistant', label: 'Assistant', icon: Sparkles },
       { to: '/messages', label: 'Messages', icon: MessageSquare },
       { to: '/contacts', label: 'Contacts', icon: Users },
       { to: '/automations', label: 'Automations', icon: Zap },
@@ -38,7 +43,7 @@ export const NAV_SECTIONS = [
   },
   {
     label: 'Buyer Agent',
-    items: [{ to: '/buyer/schedule', label: 'Buyer Scheduling', icon: CalendarClock }],
+    items: [{ to: '/buyer/schedule', label: 'Tours', icon: CalendarClock }],
   },
   {
     label: 'Team',
@@ -46,7 +51,10 @@ export const NAV_SECTIONS = [
   },
   {
     label: 'Account',
-    items: [{ to: '/billing', label: 'Billing', icon: CreditCard }],
+    items: [
+      { to: '/overview', label: 'App overview', icon: Presentation },
+      { to: '/billing', label: 'Billing', icon: CreditCard },
+    ],
   },
 ];
 
@@ -57,5 +65,5 @@ export const NAV_ITEMS = NAV_SECTIONS.flatMap((section) => section.items);
 export const QUICK_ACTIONS = [
   { to: '/listings/new', label: 'New Listing', icon: FileText },
   { to: '/open-houses', label: 'New Open House', icon: DoorOpen },
-  { to: '/buyer/schedule', label: 'New Buyer Tour', icon: CalendarClock },
+  { to: '/buyer/schedule', label: 'New Tour', icon: CalendarClock },
 ];

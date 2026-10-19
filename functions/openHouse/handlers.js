@@ -2,6 +2,7 @@ const { onCall } = require('firebase-functions/v2/https');
 const { admin } = require('../shared/admin');
 const sendgrid = require('@sendgrid/mail');
 const { getTwilioClient, getTwilioFromNumber } = require('../shared/twilio');
+const { assertSubscriptionActive } = require('../shared/subscription');
 
 // Send verification code for open house check-in
 exports.sendOpenHouseVerificationCode = onCall(async (request) => {
@@ -272,6 +273,10 @@ exports.requestDigitalFlyer = onCall(async (request) => {
 // Send follow-up messages
 exports.sendFollowUpMessages = onCall(async (request) => {
   try {
+    if (!request.auth) {
+      throw new Error('Must be authenticated');
+    }
+    await assertSubscriptionActive(request.auth.uid);
     const { openHouseId, message, visitorIds } = request.data
 
     if (!openHouseId || !message) {
@@ -364,6 +369,7 @@ exports.scheduleOpenHouseReminder = onCall(
     } = require('../automations/enqueue')
 
     const ownerUid = openHouse.agentId || openHouse.ownerUid
+    await assertSubscriptionActive(ownerUid)
     const settings = await loadSettings(db, ownerUid)
     // Explicit schedule from UI always enqueues (force enable for this call)
     const forced = {

@@ -8,6 +8,7 @@ const {
 } = require('../shared/twilio');
 const { sendEmail } = require('../shared/email');
 const { loadSettings } = require('./enqueue');
+const { planOutboundSms, commitOutboundSms } = require('../shared/smsRouting');
 
 const TWILIO_SECRETS = ['TWILIO_ACCOUNT_SID', 'TWILIO_AUTH_TOKEN', 'TWILIO_PHONE_NUMBER'];
 // SendGrid is optional (same pattern as openHouse handlers) — not required in Secret Manager.
@@ -21,31 +22,18 @@ const RULE_KEY_BY_TYPE = {
   buyer_tour_followup_sms: 'buyerTourFollowupSms',
 };
 
-async function upsertSmsRouting(db, contactPhone, data) {
-  await db.collection('smsRouting').doc(contactPhone).set(
-    {
-      ...data,
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-    },
-    { merge: true }
-  );
-}
-
-async function logOutboundMessage(db, task, twilioSid) {
-  const contactPhone = normalizePhone(task.contactPhone);
+async function logOutboundMessage(db, task, twilioSid, planned) {
+  const contactPhone = planned?.contactPhone || normalizePhone(task.contactPhone);
   if (!contactPhone || !task.ownerUid) return;
 
-  const agentPhone = normalizePhone(getTwilioFromNumber());
-  const threadKey = `${agentPhone}::${contactPhone}`;
-
   await db.collection('messages').add({
-    threadKey,
+    threadKey: planned.threadKey,
     agentUid: task.ownerUid,
     agentEmail: null,
-    agentPhone,
+    agentPhone: planned.candidate.agentPhone,
     contactPhone,
     direction: 'outbound',
-    body: task.payload?.body || '',
+    body: planned.body,
     twilioSid: twilioSid || null,
     listingId: task.meta?.listingId || null,
     offerId: task.meta?.offerId || null,
@@ -56,13 +44,7 @@ async function logOutboundMessage(db, task, twilioSid) {
     read: true,
   });
 
-  await upsertSmsRouting(db, contactPhone, {
-    agentUid: task.ownerUid,
-    agentPhone,
-    teamId: task.teamId || null,
-    offerId: task.meta?.offerId || null,
-    listingId: task.meta?.listingId || null,
-  });
+  await commitOutboundSms(db, planned);
 }
 
 async function isOnDnc(db, phone) {
@@ -109,13 +91,22 @@ async function processOneTask(db, docSnap) {
         return { status: 'skipped' };
       }
 
+      const planned = await planOutboundSms(db, {
+        contactPhone: task.contactPhone,
+        agentUid: task.ownerUid,
+        agentPhone: normalizePhone(getTwilioFromNumber()),
+        teamId: task.teamId || null,
+        offerId: task.meta?.offerId || null,
+        listingId: task.meta?.listingId || null,
+      }, task.payload?.body || '');
+
       const sent = await getTwilioClient().messages.create({
-        body: task.payload?.body || '',
+        body: planned.body,
         from: getTwilioFromNumber(),
         to: normalizePhone(task.contactPhone),
       });
 
-      await logOutboundMessage(db, task, sent.sid);
+      await logOutboundMessage(db, task, sent.sid, planned);
       await ref.update({
         status: 'sent',
         sentAt: admin.firestore.FieldValue.serverTimestamp(),

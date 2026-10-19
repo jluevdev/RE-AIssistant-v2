@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import Logo from '../../../components/layout/Logo';
 import { brand } from '../../../theme/tokens';
 import { footer as footerContent } from '../marketingContent';
 
@@ -32,12 +33,7 @@ export default function Footer() {
       <div className="mx-auto max-w-6xl px-4 py-12 sm:px-6">
         <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
           <div className="sm:col-span-2 lg:col-span-1">
-            <div className="flex items-center gap-2 font-semibold text-brand-700">
-              <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-600 text-sm font-bold text-white">
-                {brand.shortName}
-              </span>
-              {brand.name}
-            </div>
+            <Logo />
             <p className="mt-3 max-w-xs text-sm text-slate-500">{footerContent.tagline}</p>
           </div>
 

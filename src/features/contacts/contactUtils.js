@@ -1,11 +1,14 @@
 import { formatPhone, normalizePhoneKey } from '../messages/messageUtils';
+import { contactDisplayPrefix, contactTypeFromTarget } from '../buyer/tourKind';
 
-export const CONTACT_TYPES = ['buyer', 'seller', 'listing_agent', 'other'];
+export const CONTACT_TYPES = ['buyer', 'seller', 'listing_agent', 'owner', 'property_manager', 'other'];
 
 export const TYPE_LABELS = {
   buyer: 'Buyer',
   seller: 'Seller',
   listing_agent: 'Listing agent',
+  owner: 'Owner',
+  property_manager: 'Property manager',
   other: 'Other',
 };
 
@@ -129,11 +132,13 @@ export function deriveContactsFromSources({
 
     for (const target of schedule.targets || []) {
       if (!target?.listingAgentPhone) continue;
+      const type = contactTypeFromTarget(schedule.tourKind, target.contactRole);
+      const prefix = contactDisplayPrefix(schedule.tourKind, target.contactRole);
       addCandidate(map, {
-        name: target.address ? `Listing agent — ${target.address}` : '',
+        name: target.listingAgentName || (target.address ? `${prefix} — ${target.address}` : prefix),
         phone: target.listingAgentPhone,
-        email: '',
-        type: 'listing_agent',
+        email: target.listingAgentEmail || '',
+        type,
         source: 'buyer_tour',
         lastContactedAt: schedule.createdAt,
       });

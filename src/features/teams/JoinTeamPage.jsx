@@ -9,13 +9,21 @@ import { Button, Card, EmptyState, PageHeader, toast } from '../../components/ui
 export default function JoinTeamPage() {
   const { token } = useParams();
   const navigate = useNavigate();
-  const { currentUser, loading, refreshUserProfile } = useAuth();
+  const { currentUser, loading, refreshUserProfile, userProfile } = useAuth();
   const [accepting, setAccepting] = useState(false);
   const [done, setDone] = useState(false);
   const [teamName, setTeamName] = useState('');
 
   useEffect(() => {
     if (loading || !currentUser || !token || done || accepting) return;
+
+    if (userProfile?.teamId) {
+      setDone(true);
+      setTeamName('your team');
+      toast.success('You are already on a team');
+      setTimeout(() => navigate('/team', { replace: true }), 800);
+      return;
+    }
 
     (async () => {
       setAccepting(true);
@@ -28,12 +36,21 @@ export default function JoinTeamPage() {
         toast.success(`Joined ${data?.teamName || 'team'}`);
         setTimeout(() => navigate('/team', { replace: true }), 1500);
       } catch (error) {
-        toast.error(error.message || 'Could not accept invite');
+        const code = error?.code || '';
+        const message = error?.message || 'Could not accept invite';
+        if (code === 'functions/failed-precondition' && message.toLowerCase().includes('already on a team')) {
+          await refreshUserProfile();
+          setDone(true);
+          toast.success('You are already on a team');
+          setTimeout(() => navigate('/team', { replace: true }), 800);
+          return;
+        }
+        toast.error(message);
       } finally {
         setAccepting(false);
       }
     })();
-  }, [loading, currentUser, token, done, accepting, refreshUserProfile, navigate]);
+  }, [loading, currentUser, userProfile?.teamId, token, done, accepting, refreshUserProfile, navigate]);
 
   if (loading) {
     return (

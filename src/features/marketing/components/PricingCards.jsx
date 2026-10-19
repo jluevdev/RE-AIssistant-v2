@@ -43,9 +43,22 @@ export default function PricingCards({ id, showIntro = true, compact = false, cl
                 )}
                 <h3 className="text-lg font-semibold text-brand-700">{plan.name}</h3>
                 <div className="mt-3 flex items-baseline gap-1">
-                  <span className="text-4xl font-bold text-slate-900">${plan.price}</span>
-                  <span className="text-slate-500">/month</span>
+                  {plan.priceLabel ? (
+                    <span className="text-3xl font-bold leading-tight text-slate-900">{plan.priceLabel}</span>
+                  ) : (
+                    <>
+                      <span className="text-4xl font-bold text-slate-900">${plan.price}</span>
+                      <span className="text-slate-500">/month</span>
+                    </>
+                  )}
                 </div>
+                {plan.promo && (
+                  <div className="mt-3 rounded-lg border border-accent-200 bg-accent-50 px-3 py-2">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-accent-700">{plan.promo.label}</p>
+                    <p className="text-lg font-bold text-slate-900">{plan.promo.price}</p>
+                    <p className="text-xs text-slate-500">{plan.promo.note}</p>
+                  </div>
+                )}
 
                 <ul className="mt-6 flex-1 space-y-3">
                   {bullets.map((item) => (
@@ -56,6 +69,7 @@ export default function PricingCards({ id, showIntro = true, compact = false, cl
                   ))}
                 </ul>
 
+                {!plan.priceLabel && (
                 <div className="mt-8">
                   {cta.href ? (
                     <Button as="a" href={cta.href} variant={popular ? 'primary' : 'outline'} className="w-full">
@@ -67,6 +81,7 @@ export default function PricingCards({ id, showIntro = true, compact = false, cl
                     </Button>
                   )}
                 </div>
+                )}
               </Card>
             );
           })}
