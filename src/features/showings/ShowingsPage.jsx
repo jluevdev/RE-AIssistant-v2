@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { CalendarClock } from 'lucide-react';
 import { httpsCallable } from 'firebase/functions';
 import { functions } from '../../config/firebase';
@@ -98,7 +99,7 @@ export default function ShowingsPage() {
         />
         <Card>
           <p className="text-sm text-slate-700">
-            This build does not enable SmartShowings. Set VITE_SMART_SHOWINGS_ENABLED and the function secret SMART_SHOWINGS_ENABLED to true, then rebuild. SMS stays in mock mode until SMART_SHOWINGS_SMS_MODE=live.
+            This build set VITE_SMART_SHOWINGS_ENABLED to false. Remove that, or set it to true, and rebuild. SMS stays mock until SMART_SHOWINGS_SMS_MODE=live.
           </p>
         </Card>
       </div>
@@ -125,6 +126,12 @@ export default function ShowingsPage() {
         <p className="mt-2 text-sm text-slate-500">
           DRE checks use a stub until there is an official API. A card photo can be read with the platform xAI key. Partial results need you to confirm the agent. {cardName ? `Last card name: ${cardName}.` : ''}
         </p>
+        {import.meta.env.DEV && (
+          <p className="mt-3 text-sm">
+            <Link to="/showings/simulator" className="text-brand-700 underline">Open the dev simulator</Link>
+            <span className="text-slate-500"> — local steps only, no SMS.</span>
+          </p>
+        )}
       </Card>
 
       <Card>

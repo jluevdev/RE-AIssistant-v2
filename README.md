@@ -72,12 +72,24 @@ See the surgical fork plan. Phase 2 scaffold only — feature ports start at Pha
 
 ## SmartShowings
 
-SmartShowings is the showing-coordination assistant inside REAIssistant. It is **off** unless both flags are the string `true`:
+SmartShowings is the showing-coordination assistant inside REAIssistant. It is **on** unless either flag is the string `false`:
 
-- Web app: `VITE_SMART_SHOWINGS_ENABLED=true` (rebuild and redeploy hosting)
-- Cloud Functions: `SMART_SHOWINGS_ENABLED=true`
+- Web app: `VITE_SMART_SHOWINGS_ENABLED` (default on; set `false` and rebuild to hide it)
+- Cloud Functions: `SMART_SHOWINGS_ENABLED` (default on; see `functions/env.example`)
 
-While it is on, outbound SMS still does **not** leave the project unless `SMART_SHOWINGS_SMS_MODE=live`. The default is `mock`: approvals are stored and shown in the queue, and tests never call Twilio. Email fallback is the same with `SMART_SHOWINGS_EMAIL_MODE` (default `mock`).
+Outbound SMS does **not** leave the project unless you change one variable after A2P 10DLC is approved:
+
+```bash
+SMART_SHOWINGS_SMS_MODE=live
+```
+
+Email is the same kind of change, separately: `SMART_SHOWINGS_EMAIL_MODE=live`. Both default to `mock`. The flow chart is `docs/smartshowings-flow.md`. Check it with:
+
+```bash
+npm run test:smartshowings
+```
+
+In a Vite dev server, `/showings/simulator` walks those steps locally. The route is omitted from production builds. The simulator does not call Twilio, SendGrid, or xAI.
 
 What the first version does:
 

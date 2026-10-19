@@ -8,10 +8,12 @@ const { counterpartyRequest } = require('./copy');
 const { nextAudit } = require('./audit');
 const { smartShowingsEnabled, smsMode } = require('./flag');
 
-test('feature flag and sms mode default off and mock', () => {
-  assert.equal(smartShowingsEnabled({}), false);
+test('feature flag defaults on and sms mode defaults to mock', () => {
+  assert.equal(smartShowingsEnabled({}), true);
+  assert.equal(smartShowingsEnabled({ SMART_SHOWINGS_ENABLED: 'false' }), false);
   assert.equal(smartShowingsEnabled({ SMART_SHOWINGS_ENABLED: 'true' }), true);
   assert.equal(smsMode({}), 'mock');
+  assert.equal(smsMode({ SMART_SHOWINGS_SMS_MODE: 'live' }), 'live');
   assert.equal(smsMode({ SMART_SHOWINGS_SMS_MODE: 'live' }), 'live');
 });
 

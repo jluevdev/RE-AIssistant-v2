@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react';
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 
 import RequireAuthLayout from './components/layout/RequireAuthLayout';
@@ -64,6 +65,10 @@ import OverviewDeck from './features/overview/OverviewDeck';
 
 import ShowingsPage from './features/showings/ShowingsPage';
 
+const ShowingsSimulatorPage = import.meta.env.DEV
+  ? lazy(() => import('@showings-simulator'))
+  : null;
+
 function LegacyV2Redirect() {
   const location = useLocation();
   const next = location.pathname.replace(/^\/v2/, '') || '/dashboard';
@@ -116,7 +121,18 @@ export default function App() {
 
       <Route path="/join/:token" element={<JoinTeamPage />} />
 
-
+      {ShowingsSimulatorPage ? (
+        <Route
+          path="/showings/simulator"
+          element={(
+            <Suspense fallback={<p className="p-6 text-sm text-slate-500">Loading simulator…</p>}>
+              <ShowingsSimulatorPage />
+            </Suspense>
+          )}
+        />
+      ) : (
+        <Route path="/showings/simulator" element={<Navigate to="/showings" replace />} />
+      )}
 
       {/* Authenticated routes — wrapped in AppLayout shell */}
 

@@ -1,4 +1,4 @@
-const crypto = require('crypto');
+const { sha256 } = require('./sha256');
 
 function nextAudit(prevHash, event) {
   const body = {
@@ -9,7 +9,7 @@ function nextAudit(prevHash, event) {
     at: event.at || new Date().toISOString(),
     prevHash: prevHash || 'genesis',
   };
-  const hash = crypto.createHash('sha256').update(JSON.stringify(body)).digest('hex');
+  const hash = sha256(JSON.stringify(body));
   return { ...body, hash };
 }
 
